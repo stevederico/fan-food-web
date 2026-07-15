@@ -456,6 +456,9 @@ export async function __testLoadApplicationConfig(): Promise<BackendConfig> {
       staticDir: rawConfig.staticDir || '../dist',
       database: {
         ...rawConfig.database,
+        // DB_TYPE env overrides config.json so local dev stays on sqlite while
+        // prod points at the shared libsql server without editing this file.
+        dbType: process.env.DB_TYPE || rawConfig.database.dbType,
         connectionString: resolveEnvironmentVariables(rawConfig.database.connectionString, logger)
       }
     };

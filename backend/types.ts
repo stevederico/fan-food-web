@@ -15,13 +15,13 @@
  * backend/config.json `dbType`. Aliases 'postgres' and 'mongo' map to the
  * same providers as their long forms.
  */
-export type DbType = 'sqlite' | 'postgresql' | 'postgres' | 'mongodb' | 'mongo';
+export type DbType = 'sqlite' | 'libsql' | 'turso' | 'postgresql' | 'postgres' | 'mongodb' | 'mongo';
 
 /**
  * Canonical dialect label each adapter reports in
  * `ExecuteResult.metadata.dbType`.
  */
-export type DbDialect = 'sqlite' | 'postgresql' | 'mongodb';
+export type DbDialect = 'sqlite' | 'libsql' | 'postgresql' | 'mongodb';
 
 // ==== USER & SUBSCRIPTION SHAPES ====
 
