@@ -584,3 +584,54 @@ export async function findMenuItem(
   }
   return mapMenuItemRow(result.data[0] as Record<string, unknown>);
 }
+
+/**
+ * Whether an email is an admin.
+ *
+ * Uses `ADMIN_EMAILS` (comma-separated). Empty list → all users admin in
+ * non-production (local DX); production with empty list → no admins.
+ *
+ * @param email - User email
+ * @param env - Process env (injectable for tests)
+ * @returns True when the email may use admin APIs
+ */
+export function isAdminEmail(
+  email: string,
+  env: NodeJS.ProcessEnv = process.env
+): boolean {
+  const list = (env.ADMIN_EMAILS ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (list.length === 0) {
+    return env.NODE_ENV !== 'production' && env.ENV !== 'production';
+  }
+  if (list.includes('*')) return true;
+  return list.includes(email.trim().toLowerCase());
+}
+
+/**
+ * Slugify a venue name for URLs.
+ *
+ * @param name - Display name
+ * @returns URL-safe slug
+ */
+export function slugifyVenue(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+/**
+ * Parse and validate delivery mode from request body.
+ *
+ * @param value - Raw value
+ * @returns DeliveryMode or null if invalid
+ */
+export function parseDeliveryMode(value: unknown): DeliveryMode | null {
+  if (value === 'premium' || value === 'all' || value === 'pickup_only') return value;
+  return null;
+}

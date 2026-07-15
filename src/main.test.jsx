@@ -40,6 +40,14 @@ vi.mock('./components/OrderDetailView', () => ({
   default: () => <div data-testid="order-detail-view">Detail</div>,
 }));
 
+vi.mock('./components/AdminVenuesView', () => ({
+  default: () => <div data-testid="admin-venues">Admin</div>,
+}));
+
+vi.mock('./components/AdminVenueDetailView', () => ({
+  default: () => <div data-testid="admin-venue-detail">Admin Detail</div>,
+}));
+
 vi.mock('./constants.json', () => ({
   default: {
     appName: 'FanFood',
@@ -58,7 +66,7 @@ describe('main app bootstrap', () => {
     vi.resetModules();
   });
 
-  it('boots createSkateboardApp with multi-venue routes', async () => {
+  it('boots createSkateboardApp with fan + admin routes', async () => {
     await import('./main.tsx');
 
     expect(createSkateboardApp).toHaveBeenCalledTimes(1);
@@ -70,6 +78,8 @@ describe('main app bootstrap', () => {
       'venues/:slug/order',
       'orders',
       'orders/:id',
+      'admin',
+      'admin/venues/:id',
     ]);
   });
 });

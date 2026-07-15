@@ -77,7 +77,7 @@ describe('VenuesView', () => {
 
     render(<VenuesView />);
 
-    expect(screen.getByTestId('header')).toHaveTextContent('Venues');
+    expect(screen.getByTestId('header')).toHaveTextContent('Order Food');
     expect(screen.getByText('Oracle Park')).toBeInTheDocument();
     expect(screen.getByText(/San Francisco/)).toBeInTheDocument();
   });

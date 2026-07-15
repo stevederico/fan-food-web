@@ -46,7 +46,7 @@ export default function VenuesView() {
   if (loading) {
     return (
       <>
-        <Header title="Venues" />
+        <Header title="Order Food" />
         <div className="flex flex-1 flex-col gap-3 p-4 md:p-6" aria-busy="true">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-28 w-full rounded-lg" />
@@ -59,7 +59,7 @@ export default function VenuesView() {
   if (error) {
     return (
       <>
-        <Header title="Venues" />
+        <Header title="Order Food" />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
           <p className="text-copy-md text-destructive">{error}</p>
           <Button type="button" onClick={() => refetch()}>
@@ -73,7 +73,7 @@ export default function VenuesView() {
   if (venues.length === 0) {
     return (
       <>
-        <Header title="Venues" />
+        <Header title="Order Food" />
         <div className="flex flex-1 items-center justify-center p-6">
           <Empty>
             <EmptyHeader>
@@ -88,9 +88,11 @@ export default function VenuesView() {
 
   return (
     <>
-      <Header title="Venues" buttonTitle="My Orders" onButtonTitleClick={() => navigate('/app/orders')} />
+      <Header title="Order Food" buttonTitle="My Orders" onButtonTitleClick={() => navigate('/app/orders')} />
       <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
-        <p className="text-copy-md text-muted-foreground">Pick your ballpark, then order to your seat.</p>
+        <p className="text-copy-md text-muted-foreground">
+          Fan view — pick your ballpark, then order to your seat.
+        </p>
         <ul className="grid gap-3 sm:grid-cols-2">
           {venues.map((venue) => (
             <li key={venue.id}>

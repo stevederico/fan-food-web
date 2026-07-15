@@ -1,7 +1,7 @@
 /**
  * Application entry point using Skateboard Application Shell Architecture
  *
- * FanFood: multi-venue in-seat stadium concession ordering.
+ * FanFood: multi-venue in-seat ordering with admin portal + fan view.
  *
  * @see {@link https://github.com/stevederico/skateboard|Skateboard Docs}
  */
@@ -19,6 +19,8 @@ const MenuView = lazy(() => import('./components/MenuView'));
 const OrderView = lazy(() => import('./components/OrderView'));
 const MyOrdersView = lazy(() => import('./components/MyOrdersView'));
 const OrderDetailView = lazy(() => import('./components/OrderDetailView'));
+const AdminVenuesView = lazy(() => import('./components/AdminVenuesView'));
+const AdminVenueDetailView = lazy(() => import('./components/AdminVenueDetailView'));
 
 /**
  * App layout with global command menu overlay.
@@ -37,7 +39,8 @@ export function AppLayout() {
 /**
  * Application route configuration.
  *
- * Routes are relative to root (no leading slash).
+ * Fan: home, venues/:slug, order, orders.
+ * Admin: admin, admin/venues/:id.
  */
 export const appRoutes: AppRoute[] = [
   {
@@ -80,6 +83,22 @@ export const appRoutes: AppRoute[] = [
       </Suspense>
     ),
   },
+  {
+    path: 'admin',
+    element: (
+      <Suspense fallback={<HomeViewSkeleton />}>
+        <AdminVenuesView />
+      </Suspense>
+    ),
+  },
+  {
+    path: 'admin/venues/:id',
+    element: (
+      <Suspense fallback={<HomeViewSkeleton />}>
+        <AdminVenueDetailView />
+      </Suspense>
+    ),
+  },
 ];
 
 createSkateboardApp({
@@ -89,5 +108,4 @@ createSkateboardApp({
   overrides: { layout: AppLayout },
 });
 
-/** Preload venues chunk after initial render */
 setTimeout(() => import('./components/VenuesView'), 2000);

@@ -38,14 +38,19 @@
     "devBackendURL": "http://localhost:8000/api",
     "pages": [
         {
-            "title": "Venues",
+            "title": "Order Food",
             "url": "home",
-            "icon": "map-pin"
+            "icon": "utensils"
         },
         {
             "title": "My Orders",
             "url": "orders",
             "icon": "receipt"
+        },
+        {
+            "title": "Admin",
+            "url": "admin",
+            "icon": "settings"
         }
     ],
     "stripeProducts": [

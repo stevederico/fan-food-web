@@ -14,7 +14,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFile, mkdir, stat } from 'node:fs';
 import { promisify } from 'node:util';
-import type { BackendConfig, BoundDatabase, CsrfTokenEntry, DatabaseConfig, JwtPayload, Logger, Subscription, UserSetFields } from './types.ts';
+import type { BackendConfig, BoundDatabase, CsrfTokenEntry, DatabaseConfig, ExecuteResult, JwtPayload, Logger, Subscription, UserSetFields } from './types.ts';
 import { createLogger } from './lib/logger.ts';
 import { isProd, loadEnvFile, loadLocalENV, resolveEnvironmentVariables, validateEnvironmentVariables } from './lib/env.ts';
 import { escapeHtml, validateEmail, validatePassword, validateName } from './lib/validation.ts';
@@ -34,11 +34,14 @@ import {
   findMenuItem,
   findSection,
   findVenue,
+  isAdminEmail,
   makeConfirmNumber,
   mapMenuItemRow,
   mapOrderRow,
   mapSectionRow,
   mapVenueRow,
+  parseDeliveryMode,
+  slugifyVenue,
   type PaymentType,
 } from './lib/fanfood.ts';
 
@@ -1127,6 +1130,7 @@ app.post("/api/signup", async (c) => {
         id: insertID.toString(),
         email: email,
         name: name.trim(),
+        isAdmin: isAdminEmail(email),
         tokenExpires: tokenExpireTimestamp()
       }, 201);
     } catch (e) {
@@ -1218,6 +1222,7 @@ app.post("/api/signin", async (c) => {
       id: user._id.toString(),
       email: user.email,
       name: user.name,
+      isAdmin: isAdminEmail(user.email),
       ...(user.subscription && {
         subscription: {
           stripeID: user.subscription.stripeID,
@@ -1270,7 +1275,7 @@ app.get("/api/me", authMiddleware, async (c) => {
   const user = await db.findUser( { _id: userID });
   logger.debug('/me checking for user');
   if (!user) return c.json({ error: "User not found" }, 404);
-  return c.json(user);
+  return c.json({ ...user, isAdmin: isAdminEmail(user.email) });
 });
 
 app.put("/api/me", authMiddleware, csrfProtection, async (c) => {
@@ -1430,6 +1435,43 @@ function readyFanFood(): Promise<void> {
   return fanFoodReady;
 }
 
+/**
+ * Rows from a successful executeQuery result.
+ *
+ * @param result - Query result
+ * @returns Row objects, or empty array on failure
+ */
+function queryRows(result: ExecuteResult): Record<string, unknown>[] {
+  if (!result.success || !Array.isArray(result.data)) return [];
+  return result.data as Record<string, unknown>[];
+}
+
+/**
+ * First row from a query result, if any.
+ *
+ * @param result - Query result
+ * @returns First row or null
+ */
+function queryFirst(result: ExecuteResult): Record<string, unknown> | null {
+  return queryRows(result)[0] ?? null;
+}
+
+/**
+ * Require authenticated admin (ADMIN_EMAILS).
+ *
+ * @param c - Hono context
+ * @param next - Next middleware
+ * @returns Response or next
+ */
+async function adminMiddleware(c: Context<AppEnv>, next: Next) {
+  const userID = c.get('userID');
+  const user = await db.findUser({ _id: userID });
+  if (!user || !isAdminEmail(user.email)) {
+    return c.json({ error: 'Admin access required' }, 403);
+  }
+  await next();
+}
+
 /** List active venues (multi-stadium support). */
 app.get('/api/venues', async (c) => {
   try {
@@ -1438,7 +1480,7 @@ app.get('/api/venues', async (c) => {
       query: 'SELECT * FROM Venues WHERE active = 1 ORDER BY name ASC',
     });
     if (!result.success) return c.json({ error: 'Failed to load venues' }, 500);
-    const rows = Array.isArray(result.data) ? (result.data as Record<string, unknown>[]) : [];
+    const rows = queryRows(result);
     return c.json(rows.map(mapVenueRow));
   } catch (e) {
     logger.error('List venues error', { error: errorMessage(e) });
@@ -1475,7 +1517,7 @@ app.get('/api/venues/:slug/menu', async (c) => {
       params: [venue.id],
     });
     if (!result.success) return c.json({ error: 'Failed to load menu' }, 500);
-    const rows = Array.isArray(result.data) ? (result.data as Record<string, unknown>[]) : [];
+    const rows = queryRows(result);
     c.header('X-Venue', venue.slug);
     return c.json(rows.map(mapMenuItemRow));
   } catch (e) {
@@ -1497,7 +1539,7 @@ app.get('/api/venues/:slug/sections', async (c) => {
       params: [venue.id],
     });
     if (!result.success) return c.json({ error: 'Failed to load sections' }, 500);
-    const rows = Array.isArray(result.data) ? (result.data as Record<string, unknown>[]) : [];
+    const rows = queryRows(result);
     return c.json(rows.map(mapSectionRow));
   } catch (e) {
     logger.error('Get sections error', { error: errorMessage(e) });
@@ -1518,7 +1560,7 @@ app.get('/api/orders', authMiddleware, async (c) => {
       logger.error('List orders failed', { error: result.error });
       return c.json({ error: 'Failed to load orders' }, 500);
     }
-    const rows = Array.isArray(result.data) ? (result.data as Record<string, unknown>[]) : [];
+    const rows = queryRows(result);
     return c.json(rows.map(mapOrderRow));
   } catch (e) {
     logger.error('List orders error', { error: errorMessage(e) });
@@ -1540,7 +1582,7 @@ app.get('/api/orders/:id', authMiddleware, async (c) => {
     if (!result.success) {
       return c.json({ error: 'Failed to load order' }, 500);
     }
-    const rows = Array.isArray(result.data) ? (result.data as Record<string, unknown>[]) : [];
+    const rows = queryRows(result);
     const row = rows[0];
     if (!row) return c.json({ error: 'Order not found' }, 404);
     return c.json(mapOrderRow(row));
@@ -1673,6 +1715,494 @@ app.post('/api/orders', authMiddleware, csrfProtection, async (c) => {
     return c.json({ error: 'Server error' }, 500);
   }
 });
+
+// ==== FANFOOD ADMIN ====
+
+/** List all venues (including inactive) for operators. */
+app.get('/api/admin/venues', authMiddleware, adminMiddleware, async (c) => {
+  try {
+    await readyFanFood();
+    const result = await db.executeQuery({
+      query: 'SELECT * FROM Venues ORDER BY name ASC',
+    });
+    if (!result.success) return c.json({ error: 'Failed to load venues' }, 500);
+    const rows = queryRows(result);
+    return c.json(rows.map(mapVenueRow));
+  } catch (e) {
+    logger.error('Admin list venues error', { error: errorMessage(e) });
+    return c.json({ error: 'Server error' }, 500);
+  }
+});
+
+/** Create a venue. */
+app.post('/api/admin/venues', authMiddleware, csrfProtection, adminMiddleware, async (c) => {
+  try {
+    await readyFanFood();
+    const body = await c.req.json<Record<string, unknown>>();
+    const name = typeof body.name === 'string' ? escapeHtml(body.name.trim()) : '';
+    if (!name || name.length > 120) return c.json({ error: 'Name is required (max 120)' }, 400);
+
+    const shortName =
+      typeof body.shortName === 'string' && body.shortName.trim()
+        ? escapeHtml(body.shortName.trim())
+        : name;
+    const city = typeof body.city === 'string' ? escapeHtml(body.city.trim()) : '';
+    const state = typeof body.state === 'string' ? escapeHtml(body.state.trim()) : '';
+    const address = typeof body.address === 'string' ? escapeHtml(body.address.trim()) : '';
+    if (!city || !state || !address) {
+      return c.json({ error: 'City, state, and address are required' }, 400);
+    }
+
+    let slug =
+      typeof body.slug === 'string' && body.slug.trim()
+        ? slugifyVenue(body.slug)
+        : slugifyVenue(name);
+    if (!slug) return c.json({ error: 'Invalid slug' }, 400);
+
+    const deliveryMode = parseDeliveryMode(body.deliveryMode) ?? 'pickup_only';
+    const capacity =
+      body.capacity === null || body.capacity === undefined || body.capacity === ''
+        ? null
+        : Number(body.capacity);
+    if (capacity !== null && (!Number.isFinite(capacity) || capacity < 0)) {
+      return c.json({ error: 'Invalid capacity' }, 400);
+    }
+    const timezone =
+      typeof body.timezone === 'string' && body.timezone.trim()
+        ? body.timezone.trim()
+        : 'America/Los_Angeles';
+    const active = body.active === false || body.active === 0 ? 0 : 1;
+    const id = generateUUID();
+    const now = Date.now();
+
+    // Unique slug — append short suffix on collision
+    const existing = await db.executeQuery({
+      query: 'SELECT id FROM Venues WHERE slug = ? LIMIT 1',
+      params: [slug],
+    });
+    if (existing.success && Array.isArray(existing.data) && existing.data.length > 0) {
+      slug = `${slug}-${id.slice(0, 6)}`;
+    }
+
+    const insert = await db.executeQuery({
+      query: `INSERT INTO Venues (
+        id, slug, name, short_name, city, state, address, capacity, timezone,
+        delivery_mode, active, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      params: [
+        id,
+        slug,
+        name,
+        shortName,
+        city,
+        state,
+        address,
+        capacity,
+        timezone,
+        deliveryMode,
+        active,
+        now,
+      ],
+    });
+    if (!insert.success) {
+      logger.error('Admin create venue failed', { error: insert.error });
+      return c.json({ error: 'Failed to create venue' }, 500);
+    }
+
+    const venue = await findVenue(db, id);
+    // findVenue filters active=1 — load raw if inactive
+    if (!venue) {
+      const row = await db.executeQuery({
+        query: 'SELECT * FROM Venues WHERE id = ? LIMIT 1',
+        params: [id],
+      });
+      const r = queryFirst(row);
+      if (!r) return c.json({ error: 'Created but not found' }, 500);
+      return c.json(mapVenueRow(r), 201);
+    }
+    logger.info('Admin created venue', { venueId: id, slug });
+    return c.json(venue, 201);
+  } catch (e) {
+    logger.error('Admin create venue error', { error: errorMessage(e) });
+    return c.json({ error: 'Server error' }, 500);
+  }
+});
+
+/** Update a venue. */
+app.put('/api/admin/venues/:id', authMiddleware, csrfProtection, adminMiddleware, async (c) => {
+  try {
+    await readyFanFood();
+    const id = c.req.param('id');
+    if (!id) return c.json({ error: 'Venue id required' }, 400);
+    const body = await c.req.json<Record<string, unknown>>();
+
+    const existing = await db.executeQuery({
+      query: 'SELECT * FROM Venues WHERE id = ? LIMIT 1',
+      params: [id],
+    });
+    const cur = queryFirst(existing);
+    if (!cur) return c.json({ error: 'Venue not found' }, 404);
+    const name =
+      typeof body.name === 'string' && body.name.trim()
+        ? escapeHtml(body.name.trim())
+        : String(cur.name);
+    const shortName =
+      typeof body.shortName === 'string' && body.shortName.trim()
+        ? escapeHtml(body.shortName.trim())
+        : String(cur.short_name ?? name);
+    const city =
+      typeof body.city === 'string' && body.city.trim()
+        ? escapeHtml(body.city.trim())
+        : String(cur.city);
+    const state =
+      typeof body.state === 'string' && body.state.trim()
+        ? escapeHtml(body.state.trim())
+        : String(cur.state);
+    const address =
+      typeof body.address === 'string' && body.address.trim()
+        ? escapeHtml(body.address.trim())
+        : String(cur.address);
+    const deliveryMode = parseDeliveryMode(body.deliveryMode) ?? String(cur.delivery_mode);
+    const mode = parseDeliveryMode(deliveryMode) ?? 'pickup_only';
+    const timezone =
+      typeof body.timezone === 'string' && body.timezone.trim()
+        ? body.timezone.trim()
+        : String(cur.timezone ?? 'America/Los_Angeles');
+    let capacity: number | null =
+      cur.capacity == null ? null : Number(cur.capacity);
+    if (body.capacity !== undefined) {
+      if (body.capacity === null || body.capacity === '') capacity = null;
+      else {
+        capacity = Number(body.capacity);
+        if (!Number.isFinite(capacity) || capacity < 0) {
+          return c.json({ error: 'Invalid capacity' }, 400);
+        }
+      }
+    }
+    const active =
+      body.active === undefined
+        ? Number(cur.active)
+        : body.active === false || body.active === 0
+          ? 0
+          : 1;
+
+    const update = await db.executeQuery({
+      query: `UPDATE Venues SET name = ?, short_name = ?, city = ?, state = ?, address = ?,
+        capacity = ?, timezone = ?, delivery_mode = ?, active = ? WHERE id = ?`,
+      params: [name, shortName, city, state, address, capacity, timezone, mode, active, id],
+    });
+    if (!update.success) return c.json({ error: 'Failed to update venue' }, 500);
+
+    const row = await db.executeQuery({
+      query: 'SELECT * FROM Venues WHERE id = ? LIMIT 1',
+      params: [id],
+    });
+    const r = queryFirst(row);
+    if (!r) return c.json({ error: 'Venue not found' }, 404);
+    return c.json(mapVenueRow(r));
+  } catch (e) {
+    logger.error('Admin update venue error', { error: errorMessage(e) });
+    return c.json({ error: 'Server error' }, 500);
+  }
+});
+
+/** Add a menu item to a venue. */
+app.post(
+  '/api/admin/venues/:id/menu',
+  authMiddleware,
+  csrfProtection,
+  adminMiddleware,
+  async (c) => {
+    try {
+      await readyFanFood();
+      const venueId = c.req.param('id');
+      if (!venueId) return c.json({ error: 'Venue id required' }, 400);
+      const venueRow = await db.executeQuery({
+        query: 'SELECT id FROM Venues WHERE id = ? LIMIT 1',
+        params: [venueId],
+      });
+      if (!venueRow.success || !Array.isArray(venueRow.data) || venueRow.data.length === 0) {
+        return c.json({ error: 'Venue not found' }, 404);
+      }
+
+      const body = await c.req.json<Record<string, unknown>>();
+      const name = typeof body.name === 'string' ? escapeHtml(body.name.trim()) : '';
+      const price = Number(body.price);
+      const category =
+        typeof body.category === 'string' && body.category.trim()
+          ? escapeHtml(body.category.trim())
+          : 'Other';
+      const description =
+        typeof body.description === 'string' ? escapeHtml(body.description.trim()) : null;
+      const sortOrder = Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : 0;
+
+      if (!name || name.length > 120) return c.json({ error: 'Name is required' }, 400);
+      if (!Number.isFinite(price) || price < 0 || price > 1000) {
+        return c.json({ error: 'Invalid price' }, 400);
+      }
+
+      const id = generateUUID();
+      const insert = await db.executeQuery({
+        query: `INSERT INTO MenuItems (
+          id, venue_id, name, price, category, description, active, sort_order
+        ) VALUES (?, ?, ?, ?, ?, ?, 1, ?)`,
+        params: [id, venueId, name, price, category, description, sortOrder],
+      });
+      if (!insert.success) return c.json({ error: 'Failed to add menu item' }, 500);
+
+      const row = await db.executeQuery({
+        query: 'SELECT * FROM MenuItems WHERE id = ? LIMIT 1',
+        params: [id],
+      });
+      const r = queryFirst(row);
+      if (!r) return c.json({ error: 'Created but not found' }, 500);
+      return c.json(mapMenuItemRow(r), 201);
+    } catch (e) {
+      logger.error('Admin add menu error', { error: errorMessage(e) });
+      return c.json({ error: 'Server error' }, 500);
+    }
+  }
+);
+
+/** Update or deactivate a menu item. */
+app.put('/api/admin/menu/:id', authMiddleware, csrfProtection, adminMiddleware, async (c) => {
+  try {
+    await readyFanFood();
+    const id = c.req.param('id');
+    if (!id) return c.json({ error: 'Menu item id required' }, 400);
+    const existing = await db.executeQuery({
+      query: 'SELECT * FROM MenuItems WHERE id = ? LIMIT 1',
+      params: [id],
+    });
+    if (!existing.success || !Array.isArray(existing.data) || existing.data.length === 0) {
+      return c.json({ error: 'Menu item not found' }, 404);
+    }
+    const cur = existing.data[0] as Record<string, unknown>;
+    const body = await c.req.json<Record<string, unknown>>();
+
+    const name =
+      typeof body.name === 'string' && body.name.trim()
+        ? escapeHtml(body.name.trim())
+        : String(cur.name);
+    const price =
+      body.price !== undefined ? Number(body.price) : Number(cur.price);
+    if (!Number.isFinite(price) || price < 0 || price > 1000) {
+      return c.json({ error: 'Invalid price' }, 400);
+    }
+    const category =
+      typeof body.category === 'string' && body.category.trim()
+        ? escapeHtml(body.category.trim())
+        : String(cur.category ?? 'Other');
+    const description =
+      body.description === undefined
+        ? (cur.description == null ? null : String(cur.description))
+        : typeof body.description === 'string'
+          ? escapeHtml(body.description.trim())
+          : null;
+    const active =
+      body.active === undefined
+        ? Number(cur.active)
+        : body.active === false || body.active === 0
+          ? 0
+          : 1;
+    const sortOrder =
+      body.sortOrder !== undefined ? Number(body.sortOrder) : Number(cur.sort_order ?? 0);
+
+    await db.executeQuery({
+      query: `UPDATE MenuItems SET name = ?, price = ?, category = ?, description = ?,
+        active = ?, sort_order = ? WHERE id = ?`,
+      params: [name, price, category, description, active, sortOrder, id],
+    });
+    const row = await db.executeQuery({
+      query: 'SELECT * FROM MenuItems WHERE id = ? LIMIT 1',
+      params: [id],
+    });
+    const r = queryFirst(row);
+    if (!r) return c.json({ error: 'Not found' }, 404);
+    return c.json(mapMenuItemRow(r));
+  } catch (e) {
+    logger.error('Admin update menu error', { error: errorMessage(e) });
+    return c.json({ error: 'Server error' }, 500);
+  }
+});
+
+/** Add a section to a venue. */
+app.post(
+  '/api/admin/venues/:id/sections',
+  authMiddleware,
+  csrfProtection,
+  adminMiddleware,
+  async (c) => {
+    try {
+      await readyFanFood();
+      const venueId = c.req.param('id');
+      if (!venueId) return c.json({ error: 'Venue id required' }, 400);
+      const venueRow = await db.executeQuery({
+        query: 'SELECT id FROM Venues WHERE id = ? LIMIT 1',
+        params: [venueId],
+      });
+      if (!venueRow.success || !Array.isArray(venueRow.data) || venueRow.data.length === 0) {
+        return c.json({ error: 'Venue not found' }, 404);
+      }
+
+      const body = await c.req.json<Record<string, unknown>>();
+      const code = typeof body.code === 'string' ? escapeHtml(body.code.trim()) : '';
+      if (!code || code.length > 20) return c.json({ error: 'Section code required' }, 400);
+      const level = typeof body.level === 'string' ? body.level.trim() : 'field';
+      const zone = typeof body.zone === 'string' ? body.zone.trim() : 'field_box';
+      const rowMin =
+        typeof body.rowMin === 'string' && body.rowMin.trim()
+          ? escapeHtml(body.rowMin.trim())
+          : null;
+      const rowMax =
+        typeof body.rowMax === 'string' && body.rowMax.trim()
+          ? escapeHtml(body.rowMax.trim())
+          : null;
+      const deliveryEligible = body.deliveryEligible === true || body.deliveryEligible === 1 ? 1 : 0;
+      const notes =
+        typeof body.notes === 'string' ? escapeHtml(body.notes.trim()) : null;
+      const sortOrder = Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : 0;
+
+      const id = generateUUID();
+      const insert = await db.executeQuery({
+        query: `INSERT INTO VenueSections (
+          id, venue_id, code, level, zone, row_min, row_max, delivery_eligible, notes, sort_order
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        params: [
+          id,
+          venueId,
+          code,
+          level,
+          zone,
+          rowMin,
+          rowMax,
+          deliveryEligible,
+          notes,
+          sortOrder,
+        ],
+      });
+      if (!insert.success) {
+        if (String(insert.error ?? '').includes('UNIQUE')) {
+          return c.json({ error: 'Section code already exists for this venue' }, 409);
+        }
+        return c.json({ error: 'Failed to add section' }, 500);
+      }
+      const row = await db.executeQuery({
+        query: 'SELECT * FROM VenueSections WHERE id = ? LIMIT 1',
+        params: [id],
+      });
+      const r = queryFirst(row);
+      if (!r) return c.json({ error: 'Created but not found' }, 500);
+      return c.json(mapSectionRow(r), 201);
+    } catch (e) {
+      logger.error('Admin add section error', { error: errorMessage(e) });
+      return c.json({ error: 'Server error' }, 500);
+    }
+  }
+);
+
+/** Update a section. */
+app.put(
+  '/api/admin/sections/:id',
+  authMiddleware,
+  csrfProtection,
+  adminMiddleware,
+  async (c) => {
+    try {
+      await readyFanFood();
+      const id = c.req.param('id');
+      if (!id) return c.json({ error: 'Section id required' }, 400);
+      const existing = await db.executeQuery({
+        query: 'SELECT * FROM VenueSections WHERE id = ? LIMIT 1',
+        params: [id],
+      });
+      if (!existing.success || !Array.isArray(existing.data) || existing.data.length === 0) {
+        return c.json({ error: 'Section not found' }, 404);
+      }
+      const cur = existing.data[0] as Record<string, unknown>;
+      const body = await c.req.json<Record<string, unknown>>();
+
+      const code =
+        typeof body.code === 'string' && body.code.trim()
+          ? escapeHtml(body.code.trim())
+          : String(cur.code);
+      const level =
+        typeof body.level === 'string' && body.level.trim()
+          ? body.level.trim()
+          : String(cur.level);
+      const zone =
+        typeof body.zone === 'string' && body.zone.trim()
+          ? body.zone.trim()
+          : String(cur.zone);
+      const rowMin =
+        body.rowMin === undefined
+          ? (cur.row_min == null ? null : String(cur.row_min))
+          : typeof body.rowMin === 'string'
+            ? escapeHtml(body.rowMin.trim())
+            : null;
+      const rowMax =
+        body.rowMax === undefined
+          ? (cur.row_max == null ? null : String(cur.row_max))
+          : typeof body.rowMax === 'string'
+            ? escapeHtml(body.rowMax.trim())
+            : null;
+      const deliveryEligible =
+        body.deliveryEligible === undefined
+          ? Number(cur.delivery_eligible)
+          : body.deliveryEligible === true || body.deliveryEligible === 1
+            ? 1
+            : 0;
+      const notes =
+        body.notes === undefined
+          ? (cur.notes == null ? null : String(cur.notes))
+          : typeof body.notes === 'string'
+            ? escapeHtml(body.notes.trim())
+            : null;
+      const sortOrder =
+        body.sortOrder !== undefined ? Number(body.sortOrder) : Number(cur.sort_order ?? 0);
+
+      await db.executeQuery({
+        query: `UPDATE VenueSections SET code = ?, level = ?, zone = ?, row_min = ?, row_max = ?,
+          delivery_eligible = ?, notes = ?, sort_order = ? WHERE id = ?`,
+        params: [code, level, zone, rowMin, rowMax, deliveryEligible, notes, sortOrder, id],
+      });
+      const row = await db.executeQuery({
+        query: 'SELECT * FROM VenueSections WHERE id = ? LIMIT 1',
+        params: [id],
+      });
+      const r = queryFirst(row);
+      if (!r) return c.json({ error: 'Not found' }, 404);
+      return c.json(mapSectionRow(r));
+    } catch (e) {
+      logger.error('Admin update section error', { error: errorMessage(e) });
+      return c.json({ error: 'Server error' }, 500);
+    }
+  }
+);
+
+/** Admin menu list for a venue (includes inactive). */
+app.get(
+  '/api/admin/venues/:id/menu',
+  authMiddleware,
+  adminMiddleware,
+  async (c) => {
+    try {
+      await readyFanFood();
+      const venueId = c.req.param('id');
+      if (!venueId) return c.json({ error: 'Venue id required' }, 400);
+      const result = await db.executeQuery({
+        query: 'SELECT * FROM MenuItems WHERE venue_id = ? ORDER BY sort_order ASC, name ASC',
+        params: [venueId],
+      });
+      if (!result.success) return c.json({ error: 'Failed to load menu' }, 500);
+      const rows = queryRows(result);
+      return c.json(rows.map(mapMenuItemRow));
+    } catch (e) {
+      logger.error('Admin menu list error', { error: errorMessage(e) });
+      return c.json({ error: 'Server error' }, 500);
+    }
+  }
+);
 
 // ==== PAYMENT ROUTES ====
 app.post("/api/checkout", authMiddleware, csrfProtection, async (c) => {
