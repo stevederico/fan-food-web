@@ -11,7 +11,7 @@
 <br />
 
 <div align="center">
-  <img src="public/screenshots/order.png" width="75%" alt="FanFood — place an order to your seat at Oracle Park">
+  <img src="public/screenshots/order.jpg" width="75%" alt="FanFood — order stadium food to your seat">
 </div>
 
 <br />
