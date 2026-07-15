@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@stevederico/skateboard-ui/shadcn/ui/select';
-import { useIsAdmin } from '../lib/admin';
+import { useIsAdmin } from '../lib/isAdmin';
 
 /** Venue from admin API. */
 interface Venue {
@@ -115,7 +115,7 @@ export default function AdminVenuesView() {
       setAddress('');
       setCapacity('');
       setDeliveryMode('premium');
-      navigate(`/app/admin/venues/${created.id}`);
+      navigate(`/app/manage/venues/${created.id}`);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to create venue');
     } finally {
@@ -231,7 +231,7 @@ export default function AdminVenuesView() {
                   <button
                     type="button"
                     className="w-full text-left"
-                    onClick={() => navigate(`/app/admin/venues/${v.id}`)}
+                    onClick={() => navigate(`/app/manage/venues/${v.id}`)}
                   >
                     <Card className="transition-colors hover:bg-accent/40">
                       <CardContent className="flex items-center justify-between gap-3 py-4">

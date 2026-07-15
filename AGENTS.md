@@ -395,8 +395,8 @@ describe('fetchUser', () => {
 | `venues/:slug` | Fan | MenuView |
 | `venues/:slug/order` | Fan | OrderView |
 | `orders`, `orders/:id` | Fan | MyOrdersView / OrderDetailView |
-| `admin` | Admin | AdminVenuesView |
-| `admin/venues/:id` | Admin | AdminVenueDetailView |
+| `manage` | Admin | AdminVenuesView (not `admin` — Cloudflare 403) |
+| `manage/venues/:id` | Admin | AdminVenueDetailView |
 
 ### Dev notes
 - Prefer `bun run front` + `cd backend && bun run dev` (Bun can break `npm run --workspace=backend dev` via root `start`)
@@ -425,7 +425,7 @@ Skateboard uses an **Application Shell Architecture** where skateboard-ui provid
 fan-food-web/
 ├── src/
 │   ├── components/       # Fan + Admin views
-│   ├── lib/admin.ts      # useIsAdmin()
+│   ├── lib/isAdmin.ts    # useIsAdmin()
 │   ├── assets/styles.css
 │   ├── main.tsx          # Fan + admin routes
 │   └── constants.json

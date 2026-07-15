@@ -15,7 +15,7 @@ App-owned FanFood logic lives outside pure boilerplate:
 | `backend/lib/fanfood.ts` | Venues, sections, menu, seed — **app-owned** |
 | `backend/server.ts` | Contains FanFood + admin routes — **3-way merge carefully** |
 | `src/components/*` | Fan + admin views — **app-owned** |
-| `src/lib/admin.ts` | Admin helper — **app-owned** |
+| `src/lib/isAdmin.ts` | Admin helper — **app-owned** |
 | `src/constants.json` | App branding/nav — never take canonical wholesale |
 | `src/main.tsx` | Custom routes — preserve |
 

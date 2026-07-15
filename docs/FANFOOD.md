@@ -23,7 +23,7 @@ Requires `isAdmin` on the user (`ADMIN_EMAILS` in `backend/.env`).
 - **Production** with empty list → no admins
 - Comma-separated emails, or `*` for everyone
 
-Portal: **Admin** (`/app/admin`)
+Portal: **Manage** (`/app/manage`) — not `/admin` (Cloudflare blocks that path)
 
 - Create venue (name, city, state, address, delivery mode, optional capacity)
 - Open venue: edit metadata, active/inactive
@@ -127,7 +127,7 @@ Matches real-world Oracle Park style: Uber Eats in-seat for premium clubs; every
 | `src/components/OrderDetailView.tsx` | Fan receipt |
 | `src/components/AdminVenuesView.tsx` | Admin list + create |
 | `src/components/AdminVenueDetailView.tsx` | Admin edit venue |
-| `src/lib/admin.ts` | `useIsAdmin()` |
+| `src/lib/isAdmin.ts` | `useIsAdmin()` |
 | `src/main.tsx` | Routes |
 | `src/constants.json` | Nav + branding |
 

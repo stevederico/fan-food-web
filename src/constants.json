@@ -48,8 +48,8 @@
             "icon": "receipt"
         },
         {
-            "title": "Admin",
-            "url": "admin",
+            "title": "Manage",
+            "url": "manage",
             "icon": "settings"
         }
     ],

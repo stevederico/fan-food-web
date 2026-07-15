@@ -78,8 +78,8 @@ describe('main app bootstrap', () => {
       'venues/:slug/order',
       'orders',
       'orders/:id',
-      'admin',
-      'admin/venues/:id',
+      'manage',
+      'manage/venues/:id',
     ]);
   });
 });

@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@stevederico/skateboard-ui/shadcn/ui/select';
-import { useIsAdmin } from '../lib/admin';
+import { useIsAdmin } from '../lib/isAdmin';
 
 /** Venue record. */
 interface Venue {
@@ -155,7 +155,7 @@ export default function AdminVenueDetailView() {
         <Header title="Admin" />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
           <p className="text-copy-md text-destructive">{error ?? 'Not found'}</p>
-          <Button type="button" onClick={() => navigate('/app/admin')}>
+          <Button type="button" onClick={() => navigate('/app/manage')}>
             Back
           </Button>
         </div>
@@ -261,7 +261,7 @@ export default function AdminVenueDetailView() {
       <Header
         title={venue.name}
         buttonTitle="All venues"
-        onButtonTitleClick={() => navigate('/app/admin')}
+        onButtonTitleClick={() => navigate('/app/manage')}
       />
       <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
         {saveMsg ? <p className="text-copy-sm text-muted-foreground">{saveMsg}</p> : null}

@@ -83,8 +83,9 @@ export const appRoutes: AppRoute[] = [
       </Suspense>
     ),
   },
+  // Note: route must NOT be "admin" — Cloudflare Bot Fight blocks /admin paths (403).
   {
-    path: 'admin',
+    path: 'manage',
     element: (
       <Suspense fallback={<HomeViewSkeleton />}>
         <AdminVenuesView />
@@ -92,7 +93,7 @@ export const appRoutes: AppRoute[] = [
     ),
   },
   {
-    path: 'admin/venues/:id',
+    path: 'manage/venues/:id',
     element: (
       <Suspense fallback={<HomeViewSkeleton />}>
         <AdminVenueDetailView />

@@ -37,7 +37,7 @@ In-seat (and pickup) concession ordering for sports venues. Inspired by the orig
 | Role | Routes | What you do |
 |------|--------|-------------|
 | **Fan** | `/app/home`, `/app/venues/:slug`, `/app/orders` | Browse venues, order to seat, track orders |
-| **Admin** | `/app/admin`, `/app/admin/venues/:id` | Add venues, menu items, sections, delivery rules |
+| **Admin** | `/app/manage`, `/app/manage/venues/:id` | Add venues, menu items, sections, delivery rules |
 
 Oracle Park ships seeded (sections 101–336 zones, real-ish menu, premium in-seat delivery on Field Club 107–124).
 
@@ -76,7 +76,7 @@ Oracle Park ships seeded (sections 101–336 zones, real-ish menu, premium in-se
   "pages": [
     { "title": "Order Food", "url": "home", "icon": "utensils" },
     { "title": "My Orders", "url": "orders", "icon": "receipt" },
-    { "title": "Admin", "url": "admin", "icon": "settings" }
+    { "title": "Manage", "url": "manage", "icon": "settings" }
   ]
 }
 ```
