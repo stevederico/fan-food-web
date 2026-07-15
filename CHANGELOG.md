@@ -9,6 +9,11 @@ All notable changes to **FanFood** (`fan-food-web`).
 - bulk section import CSV
 - restrict Admin nav to isAdmin only in shell
 
+## 0.2.0
+
+  prod on sqlite-shared
+  libsql adapter wired
+
 ## 0.1.0
 
   multi-venue SQLite domain

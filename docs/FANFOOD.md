@@ -30,7 +30,14 @@ Portal: **Admin** (`/app/admin`)
 - Add menu items; deactivate items
 - Add sections (code, level, zone, delivery flag)
 
-## Data model (SQLite)
+## Production database (sqlite-shared)
+
+- **Local:** file SQLite via `config.json` (`dbType: "sqlite"`, `./databases/FanFood.db`)
+- **Prod Railway:** `DB_TYPE=libsql` + `LIBSQL_URL` / `LIBSQL_ADMIN_URL` → shared **sqlite-shared** service
+- **Namespace:** `FanFood` (from `config.database.db`) — isolated DB on the shared server
+- Adapter: `backend/adapters/libsql.ts` (`@libsql/client/web`, `x-namespace` header)
+
+## Data model (SQLite / libSQL)
 
 Tables created by `backend/lib/fanfood.ts` → `ensureFanFoodSchema`:
 
