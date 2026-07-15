@@ -1,11 +1,19 @@
 # Skateboard Guide
 
-Complete reference for the Skateboard boilerplate. Quick links:
+Complete reference for the **Skateboard boilerplate** (auth, shell, Stripe, adapters).
+
+**This repo is FanFood** (multi-venue stadium food ordering). For product-specific docs:
+
+- **[FanFood guide](FANFOOD.md)** — fan/admin roles, data model, Oracle Park seed, FanFood APIs  
+- **[README](../README.md)** — quick start and overview  
+- **[AGENTS.md](../AGENTS.md)** — agent/project conventions  
+
+Boilerplate quick links:
 
 - [Architecture](#architecture) — Application Shell pattern, structure, scaling
-- [API Reference](#api-reference) — REST endpoints
-- [Database Schema](#database-schema) — Tables, fields, multi-DB adapters
-- [Deployment](#deployment) — Vercel, Render, Netlify, Docker
+- [API Reference](#api-reference) — Skateboard REST endpoints (auth, me, payments)
+- [Database Schema](#database-schema) — Users/Auths/webhooks (FanFood tables → FANFOOD.md)
+- [Deployment](#deployment) — host-agnostic deploy notes
 - [Migration](#migration) — Upgrade prompt for AI agents
 
 ---

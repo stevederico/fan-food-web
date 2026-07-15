@@ -51,7 +51,7 @@ When making ANY code changes, you MUST update:
 - README.md if user-facing behavior changes
 - CLAUDE.md if architecture/patterns change
 - API docs if endpoints change
-- the changelog for all changes (`skateboard-changelog.md` in this repo; `CHANGELOG.md` in apps — see commit protocol)
+- the changelog for all changes — **this app uses `CHANGELOG.md`** (not `skateboard-changelog.md`)
 
 **Version & dependency bumps MUST propagate to every doc that names them (no exceptions):**
 - Bumping a version in `package.json` (the app `version`, `skateboardVersion`, or any dependency) is NOT done until you have grepped the docs for the old value and updated every hit: `README.md` (the Technology/Version table, version floors), `docs/GUIDE.md`, `docs/UPGRADE.md`, and the AGENTS.md "Version" block.
@@ -375,6 +375,34 @@ describe('fetchUser', () => {
 4. **Commit** — message starts with version number, followed by descriptive summary
 5. **Push and tag** — `git push origin master && git tag 0.x.x && git push origin 0.x.x`
 
+## FanFood (this app)
+
+**Product:** multi-venue stadium concession ordering (fan order flow + admin portal).  
+**Seed venue:** Oracle Park (`oracle-park`).  
+**Docs:** [docs/FANFOOD.md](docs/FANFOOD.md) · [README.md](README.md) · changelog: **`CHANGELOG.md`** (app history; ignore `skateboard-changelog.md` for app releases).
+
+### Domain rules
+- Venues, sections, and menu items live in **SQLite** (`backend/lib/fanfood.ts`) — never hardcode a single stadium for new features
+- Order prices come from **server menu rows**, not the client
+- Delivery: venue `delivery_mode` (`premium` | `all` | `pickup_only`) × section `delivery_eligible`
+- Admin gate: `ADMIN_EMAILS` env (comma-separated); empty + non-prod → all users admin
+- `/api/me`, signup, and signin return `isAdmin`
+
+### Routes (frontend)
+| Path | Role | Component |
+|------|------|-----------|
+| `home` | Fan | VenuesView (Order Food) |
+| `venues/:slug` | Fan | MenuView |
+| `venues/:slug/order` | Fan | OrderView |
+| `orders`, `orders/:id` | Fan | MyOrdersView / OrderDetailView |
+| `admin` | Admin | AdminVenuesView |
+| `admin/venues/:id` | Admin | AdminVenueDetailView |
+
+### Dev notes
+- Prefer `bun run front` + `cd backend && bun run dev` (Bun can break `npm run --workspace=backend dev` via root `start`)
+- Re-seed: delete `backend/databases/FanFood.db*`
+- Do not touch sibling repo **BXFood** (unrelated)
+
 ## Architecture Overview
 
 ### Application Shell Architecture (v1.1)
@@ -389,27 +417,30 @@ Skateboard uses an **Application Shell Architecture** where skateboard-ui provid
 **Key principle:** Update skateboard-ui package once, all apps inherit improvements.
 
 ### Monorepo Structure
-- **Root**: React frontend with Vite 7.1+ build system using skateboard-ui
+- **Root**: React frontend with Vite + skateboard-ui
 - **Backend Workspace**: Hono server with multi-database support
 
 ### Project Structure
 ```
-skateboard/
+fan-food-web/
 ├── src/
-│   ├── components/       # Your custom components (e.g., HomeView.tsx)
-│   ├── assets/
-│   │   └── styles.css   # Brand color override (7 lines)
-│   ├── main.tsx         # Route definitions (16 lines)
-│   └── constants.json   # All your app config
+│   ├── components/       # Fan + Admin views
+│   ├── lib/admin.ts      # useIsAdmin()
+│   ├── assets/styles.css
+│   ├── main.tsx          # Fan + admin routes
+│   └── constants.json
 ├── backend/
-│   ├── server.ts        # Hono server
-│   ├── adapters/        # Database adapters (SQLite, PostgreSQL, MongoDB)
-│   ├── databases/       # SQLite database files
-│   ├── tsconfig.json    # Backend TypeScript config
-│   └── config.json      # Backend config with database settings
-├── package.json         # Dependencies (includes skateboard-ui)
-├── tsconfig.json        # Frontend TypeScript config (strict)
-└── vite.config.ts       # Vite configuration (app-owned)
+│   ├── server.ts         # Auth + FanFood + admin APIs
+│   ├── lib/fanfood.ts    # Schema, seed, mappers
+│   ├── adapters/
+│   ├── databases/        # FanFood.db
+│   └── config.json       # db: FanFood, sqlite
+├── docs/
+│   ├── FANFOOD.md        # Product / domain
+│   ├── GUIDE.md          # Skateboard boilerplate
+│   └── UPGRADE.md        # Boilerplate upgrade cautions
+├── package.json
+└── vite.config.ts
 ```
 
 **What's NOT in your app (provided by skateboard-ui):**
@@ -630,7 +661,7 @@ When working with these libraries, consult the provided documentation before mak
 
 ## Documentation
 
-**Reference:** [docs/GUIDE.md](docs/GUIDE.md) - Architecture, API, Schema, Deployment, Migration (consolidated)
+**Reference:** [docs/FANFOOD.md](docs/FANFOOD.md) (product) · [docs/GUIDE.md](docs/GUIDE.md) (Skateboard boilerplate)
 
 **Version:**
 - skateboard@4.11.1

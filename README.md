@@ -1,319 +1,205 @@
 <div align="center">
-  <a href="#" />
-    <img alt="Skateboard - Ship your React app in minutes" width="40%" src="https://github.com/user-attachments/assets/b7f2b098-503b-4439-8454-7eb45ae82307">
-  </a>
-  </div>
-
   <p align="center" style="margin-top: 40px; margin-bottom: 5px;">
-    <img src="public/icons/icon.png" width="60" height="60" alt="Skateboard Logo">
+    <img src="public/icons/icon.png" width="60" height="60" alt="FanFood Logo">
   </p>
   <h1 align="center" style="border-bottom: none; margin-bottom: 0;">FanFood</h1>
   <h3 align="center" style="margin-top: 0; font-weight: normal;">
-    order stadium concession food to your seat
+    multi-venue stadium concession ordering — react, hono, sqlite, skateboard
   </h3>
-
-  <p align="center">
-    <a href="https://stevederico.github.io/skateboard/"><strong>📖 Documentation</strong></a>
-  </p>
-
 </div>
 
 <br />
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
-npx create-skateboard-app
+git clone https://github.com/stevederico/fan-food-web.git
+cd fan-food-web
+bun install          # or: npm run install-all
+bun run front        # http://localhost:5173
+# other terminal:
+cd backend && bun run dev   # http://localhost:8000
 ```
 
-That's it, your app is now running at `http://localhost:5173` 🎉
+Sign up, then:
+
+- **Fan:** Order Food → pick a venue → menu → section/row/seat → place order  
+- **Admin:** Admin → create/edit venues, menu items, sections  
+
+> `npm run start` can fail under Bun’s workspace launcher; run `front` and `backend` `dev` separately as above.
 
 <br />
 
-## ✨ What's Included
+## What It Is
 
-Everything you need to ship a production-ready app:
+In-seat (and pickup) concession ordering for sports venues. Inspired by the original [fan-food iOS app](https://github.com/stevederico/fan-food) (Oracle Park / formerly AT&T Park). Supports **many venues** in one database.
 
-### 🏗️ **Application Shell Architecture**
-- **95% less boilerplate** - Focus on features, not infrastructure
-- **Shell + Content + Config** - Framework provides structure, you provide content
-- **Update once, fix everywhere** - All apps inherit improvements from skateboard-ui
-- **16-line main.tsx** - Just define your routes
-- **Convention over configuration** - Sensible defaults with escape hatches everywhere
+| Role | Routes | What you do |
+|------|--------|-------------|
+| **Fan** | `/app/home`, `/app/venues/:slug`, `/app/orders` | Browse venues, order to seat, track orders |
+| **Admin** | `/app/admin`, `/app/admin/venues/:id` | Add venues, menu items, sections, delivery rules |
 
-### 🔐 **Authentication & User Management**
-- **Sign up / Sign in** with native HS256 JWT in HttpOnly cookies
-- **Protected routes** with automatic redirects
-- **User context** management across your app
-- **Session persistence** with secure cookies
-- **scrypt password hashing** via `node:crypto` (zero external deps)
-- **Usage tracking** with configurable limits for free users
-
-### 💳 **Stripe Integration**
-- **Checkout flows** ready to go
-- **Subscription management** portal
-- **Webhook handling** for payment events
-- **Customer portal** integration
-
-### 🎨 **Beautiful UI Components**
-- **Shadcn/ui components** via skateboard-ui
-- **Dark/Light mode** with system detection
-- **Mobile-ready design** with responsive sidebar and TabBar
-- **Landing page** that converts - fully customizable via constants.json
-- **Settings page** with user management
-- **Legal pages** (Terms, Privacy, EULA)
-
-### 🛠️ **Developer Experience**
-- **Hot Module Replacement** with Vite 8
-- **Zero config** - just works out of the box
-- **Multi-database support** - SQLite (default), MongoDB, PostgreSQL
-- **constants.json** - customize everything in one place
-- **TypeScript without a build step** - strict mode, Node 24 runs `.ts` natively, Vite compiles `.tsx`
-- **Typecheck gates** - `npm run typecheck` wired into build, test, and a pre-commit hook
-- **Built-in hooks** - useListData, useForm for common patterns
-- **API utilities** - apiRequest with automatic auth and error handling
+Oracle Park ships seeded (sections 101–336 zones, real-ish menu, premium in-seat delivery on Field Club 107–124).
 
 <br />
 
-## 📖 Frontend Configuration
+## Features
 
-Update `src/constants.json` to customize your app:
+### Ordering
+- **Multi-venue** menus and seating from SQLite  
+- **Section picker** with level/zone and delivery eligibility  
+- **Server-side prices** — never trust client amounts  
+- **Cash / Card** payment type (card details not stored in demo)  
+- **Order history** with confirmation numbers  
+
+### Admin portal
+- Create and edit venues (active/inactive, delivery mode)  
+- Add/deactivate menu items  
+- Add sections (code, level, zone, in-seat flag)  
+
+### Platform (Skateboard)
+- **JWT auth** (HttpOnly cookies, scrypt passwords)  
+- **CSRF** protection on mutating routes  
+- **Stripe** subscription plumbing (optional)  
+- **skateboard-ui** shell, dark mode, responsive layout  
+
+<br />
+
+## Configuration
+
+### Frontend — `src/constants.json`
 
 ```json
 {
-  "appName": "Your App Name",
-  "tagline": "Your Tagline",
-  "cta": "Get Started"
+  "appName": "FanFood",
+  "tagline": "Order stadium food to your seat",
+  "pages": [
+    { "title": "Order Food", "url": "home", "icon": "utensils" },
+    { "title": "My Orders", "url": "orders", "icon": "receipt" },
+    { "title": "Admin", "url": "admin", "icon": "settings" }
+  ]
 }
 ```
 
-## 📖 Backend Configuration
-
-**Database Configuration** - Update `backend/config.json`:
+### Backend — `backend/config.json`
 
 ```json
 {
-  "client": "http://localhost:5173",
+  "staticDir": "../dist",
   "database": {
-    "db": "MyApp",
+    "db": "FanFood",
     "dbType": "sqlite",
-    "connectionString": "./databases/MyApp.db"
+    "connectionString": "./databases/FanFood.db"
   }
 }
 ```
 
-For Postgres or Mongo, point `connectionString` at the relevant env var:
+### Environment — `backend/.env`
 
 ```bash
-# backend/.env
-MONGODB_URL=mongodb+srv://user:pass@example-cluster.example.net/
-POSTGRES_URL=postgresql://user:pass@example-hostname:5432/myapp
+JWT_SECRET=long-random-string
+# FanFood admins (comma-separated). Empty in non-production = every signed-in user is admin.
+# ADMIN_EMAILS=you@example.com
+STRIPE_KEY=              # optional
+STRIPE_ENDPOINT_SECRET=  # optional
+FREE_USAGE_LIMIT=20
+ENV=development
+PORT=8000
 ```
 
-**Auth Variables** - add to `backend/.env` (use a unique random string):
-
-```bash
-JWT_SECRET=your-secret-key
-FREE_USAGE_LIMIT=20  # Optional: monthly usage limit for free users (default: 20)
-```
-
-**Supported Database Types:**
-- **SQLite** (default): `"dbType": "sqlite"`
-- **PostgreSQL**: `"dbType": "postgresql"` with `"connectionString": "${POSTGRES_URL}"`
-- **MongoDB**: `"dbType": "mongodb"` with `"connectionString": "${MONGODB_URL}"` and `"db": "SkateboardApp"`
+Copy from `backend/.env.example` if needed.
 
 <br />
 
-## 💳 Stripe Setup
+## API (FanFood)
 
-To enable payments, configure your Stripe products:
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/venues` | — | Active venues (fan) |
+| GET | `/api/venues/:slug` | — | Venue detail |
+| GET | `/api/venues/:slug/menu` | — | Menu items |
+| GET | `/api/venues/:slug/sections` | — | Seating sections |
+| GET | `/api/orders` | user | Your orders |
+| GET | `/api/orders/:id` | user | Order detail |
+| POST | `/api/orders` | user + CSRF | Place order |
+| GET | `/api/admin/venues` | admin | All venues |
+| POST | `/api/admin/venues` | admin + CSRF | Create venue |
+| PUT | `/api/admin/venues/:id` | admin + CSRF | Update venue |
+| GET | `/api/admin/venues/:id/menu` | admin | Menu incl. inactive |
+| POST | `/api/admin/venues/:id/menu` | admin + CSRF | Add menu item |
+| PUT | `/api/admin/menu/:id` | admin + CSRF | Update menu item |
+| POST | `/api/admin/venues/:id/sections` | admin + CSRF | Add section |
+| PUT | `/api/admin/sections/:id` | admin + CSRF | Update section |
 
-1. **Create Product in Stripe Dashboard**
-   - Go to **Product Catalog** → **Create Product**
-   - Add **Name** and **Amount**
-   - Click **More Pricing Options**
-   - Scroll to **Lookup Key** at bottom
-   - Enter: `my_lookup_key`
-   - *This allows future pricing changes on stripe.com without updating your code*
-
-2. **Update Environment Variables**
-   ```bash
-   STRIPE_KEY=sk_live_your_secret_key
-   ```
-
-   **Security Note:** Use your secret key OR create a restricted key with these permissions:
-   - **Read/Write:** Checkout Sessions
-   - **Read:** Customers, Prices, Products
-
-3. **Setup Webhook**
-   - Go to **stripe.com** → **Developers** (lower left) → **Webhooks**
-   - Click **Add Endpoint**
-   - Add your endpoint URL: `https://yourdomain.com/payment`
-   - Select these events:
-     - `customer.subscription.created` - Customer signed up for new plan
-     - `customer.subscription.deleted` - Customer's subscription ends
-     - `customer.subscription.updated` - Subscription changes (plan switch, trial to active, etc.)
-   - Copy the **Signing Secret** to your environment:
-   ```bash
-   STRIPE_ENDPOINT_SECRET=whsec_your_webhook_secret
-   ```
+Plus Skateboard auth/billing: `/api/signup`, `/api/signin`, `/api/me`, `/api/checkout`, etc. Full boilerplate reference: [docs/GUIDE.md](docs/GUIDE.md). Product detail: [docs/FANFOOD.md](docs/FANFOOD.md).
 
 <br />
 
-## 📈 Scaling Notes
-
-The default configuration uses in-memory stores for rate limiting and CSRF tokens. This works great for single-instance deployments.
-
-**For horizontal scaling** (multiple server instances):
-- Replace in-memory rate limiter with Redis
-- Move CSRF tokens to database or Redis
-- Use sticky sessions or shared session store
-
-See [Guide → Architecture](docs/GUIDE.md#architecture) for details.
-
-<br />
-
-## 🪶 Dependency Footprint
-
-Skateboard is intentionally lean — current footprint (counting what ships at runtime):
-
-| | Frontend runtime | Frontend dev | Backend runtime |
-|---|---|---|---|
-| Before (v2.x) | 12 | 4 | 7 |
-| **Now** | **4** | **13** | **3** |
-
-Backend `jsonwebtoken` and `bcryptjs` were both dropped — JWT signing/verification now uses `node:crypto` HMAC, and password hashing uses `node:crypto` scrypt. Legacy bcrypt hashes from older versions still verify (vendored at `backend/vendor/legacy-bcrypt.js`) and are silently re-hashed to scrypt on next login.
-
-Backend `pg` and `mongodb` are not hard deps — `create-skateboard-app` injects only the driver you pick at scaffold time, and the adapter manager lazy-loads them so SQLite-only installs never resolve the others.
-
-The frontend pulls all its UI primitives from [`skateboard-ui`](https://github.com/stevederico/skateboard-ui), which itself runs on a single hard dep (`@base-ui/react`) plus optional peer deps for heavy components users opt into.
-
-Frontend dev deps grew from 4 to 13 because v3.8.0 added `typescript` + `@types/*` for the strict typecheck and the suite pulls in `vitest` + `@testing-library/*` — all dev-only, zero runtime additions. There's still no build step for types: Node 24 strips them natively and Vite compiles `.tsx` directly.
-
-<br />
-
-## 🏗️ Tech Stack
-
-Built with the latest and greatest:
+## Tech Stack
 
 | Technology | Version | Purpose |
 |------------|---------|---------|
-| **React** | v19 | UI Framework |
-| **skateboard-ui** | v4.13+ | Application Shell, Components, Theming |
-| **Vite** | v8 | Build Tool & Dev Server (Oxc/Rolldown) |
-| **Tailwind CSS** | v4.3+ | Styling |
-| **React Router** | v7.15+ | Routing |
-| **Hono** | v4.7+ | Backend Server |
-| **TypeScript** | v6 | Types (strict, no build step) |
-| **Node.js** | v24+ | Runtime (native type-stripping) |
-| **Multi-Database** | Latest | SQLite, PostgreSQL, MongoDB |
-| **Stripe** | v18+ | Payments |
-| **node:crypto** | built-in | JWT + scrypt password hashing |
+| **React** | 19 | UI |
+| **skateboard-ui** | 4.14 | Shell, components, theming |
+| **Vite** | 8 | Frontend build / dev |
+| **Tailwind CSS** | 4 | Styling |
+| **React Router** | 7 | Routing |
+| **Hono** | 4 | API server |
+| **SQLite** | node:sqlite | Venues, menus, sections, orders |
+| **TypeScript** | strict | Frontend + backend |
+| **Node.js** | 24+ | Runtime |
+| **Stripe** | 18 | Optional subscriptions |
 
 <br />
 
-## 📚 Architecture
+## Architecture
 
-Skateboard uses an **Application Shell Architecture** where the framework (skateboard-ui) provides structure and your app provides content.
+**Skateboard Application Shell** + FanFood domain in SQLite.
 
-**Your app in 3 parts:**
-1. **Shell** (skateboard-ui) - Routing, auth, context, utilities
-2. **Content** (your code) - Components and business logic
-3. **Config** (constants.json) - App-specific settings
+1. **Shell** (`@stevederico/skateboard-ui`) — auth, layout, routing, `apiRequest`  
+2. **Fan views** — `VenuesView`, `MenuView`, `OrderView`, `MyOrdersView`, `OrderDetailView`  
+3. **Admin views** — `AdminVenuesView`, `AdminVenueDetailView`  
+4. **Domain** — `backend/lib/fanfood.ts` (schema, seed, mappers) + routes in `backend/server.ts`  
 
-**Example main.tsx** (complete app):
-```typescript
-import { createSkateboardApp } from '@stevederico/skateboard-ui/App';
-import constants from './constants.json';
-import HomeView from './components/HomeView';
-
-const appRoutes = [
-  { path: 'home', element: <HomeView /> }
-];
-
-createSkateboardApp({ constants, appRoutes });
+```
+Fan:   Venues → Menu → Order (section) → Confirm → My Orders
+Admin: Venues list → Create / Edit → Menu + Sections
 ```
 
-That's it! The shell handles routing, auth, layout, landing page, sign in/up, settings, payment, and all legal pages.
-
-**Learn more:** [Documentation site](https://stevederico.github.io/skateboard/) for guides, or [docs/GUIDE.md](docs/GUIDE.md) for the consolidated reference (Architecture, API, Schema, Deployment, Migration).
+Delivery modes per venue: `premium` (section-flagged only), `all`, `pickup_only`.
 
 <br />
 
-## 🚀 Deployment
-
-See [Guide → Deployment](docs/GUIDE.md#deployment) for step-by-step instructions on deploying to your preferred platform.
-
-<br />
-
-## ⬆️ Updating Boilerplate Files
-
-Apps scaffolded from Skateboard can pull in upstream boilerplate updates with:
+## Development
 
 ```bash
-node scripts/update-skateboard.js          # interactive — diff per file
-node scripts/update-skateboard.js --yes    # apply all without prompts
+bun run typecheck
+bun run test:frontend
+cd backend && node --experimental-test-module-mocks --test-concurrency=1 --test server.test.ts
 ```
 
-Updates only files in the safe allowlist (`backend/server.ts`, `backend/adapters/*`, `vite.config.ts`, `Dockerfile`, etc.) and merges new deps into your `package.json`. Never touches your `constants.json`, `src/components/*`, `backend/config.json`, or `.env`.
-
-Upgrading a pre-TypeScript app? The updater migrates renamed files (`backend/server.js` → `backend/server.ts`) with a 3-way merge that preserves your edits, then walks you through the typecheck. See [docs/UPGRADE.md](docs/UPGRADE.md) for the full guide and an agent prompt that automates the whole upgrade.
+**Agent guidance:** [AGENTS.md](AGENTS.md) (symlinked as `CLAUDE.md`).
 
 <br />
 
-## 🤝 Contributing
+## Deployment
 
-We love contributions!
-
-```bash
-# Fork the repo, then:
-git clone https://github.com/YOUR_USERNAME/skateboard
-cd skateboard
-npm install
-npm run start
-```
+See [docs/GUIDE.md#deployment](docs/GUIDE.md#deployment). Production needs `JWT_SECRET`, `ADMIN_EMAILS`, and your host’s static + Node process (or Docker via root `Dockerfile`).
 
 <br />
 
-## 📬 Community & Support
+## Related
 
-- **🐦 X**: [@stevederico](https://x.com/stevederico)
-- **🐛 Issues**: [GitHub Issues](https://github.com/stevederico/skateboard/issues)
-
-<br />
-
-## 🙏 Acknowledgements
-
-Built on the shoulders of giants:
-
-- [React](https://react.dev) - The library that powers the web
-- [Vite](https://vitejs.dev) - Lightning fast build tool
-- [Tailwind CSS](https://tailwindcss.com) - Utility-first CSS
-- [Shadcn/ui](https://ui.shadcn.com) - Beautiful components
-- [Hono](https://hono.dev) - Lightweight web framework
-- [Stripe](https://stripe.com) - Payment infrastructure
+- [fan-food](https://github.com/stevederico/fan-food) — original iOS Objective-C app  
+- [skateboard](https://github.com/stevederico/skateboard) — boilerplate  
+- [skateboard-ui](https://github.com/stevederico/skateboard-ui) — UI package  
+- [create-skateboard-app](https://github.com/stevederico/create-skateboard-app) — scaffolder  
 
 <br />
 
-## 🎪 Related Projects
+## License
 
-- [skateboard-ui](https://github.com/stevederico/skateboard-ui) - Component library
-- [skateboard-blog](https://github.com/stevederico/skateboard-blog) - Blog template
-- [create-skateboard-app](https://github.com/stevederico/create-skateboard-app) - CLI tool
-
-<br />
-
-## 🚀 Ready to Ship?
-
-```bash
-npx create-skateboard-app
-```
-
-<br />
-
-## 📄 License
-
-MIT License - use it however you want! See [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE).
 
 <br />
 
@@ -321,10 +207,9 @@ MIT License - use it however you want! See [LICENSE](LICENSE) for details.
 
 <div align="center">
   <p>
-    Built with ❤️ by <a href="https://github.com/stevederico">Steve Derico</a> and contributors
+    Made with <a href="https://github.com/stevederico/skateboard">Skateboard</a> — a React boilerplate with auth and payments
   </p>
-
   <p>
-    <a href="https://github.com/stevederico/skateboard">⭐ Star us on GitHub</a> — it helps!
+    Built by <a href="https://github.com/stevederico">Steve Derico</a>
   </p>
 </div>
