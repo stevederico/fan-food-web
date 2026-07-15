@@ -1,0 +1,8 @@
+{
+  "staticDir": "../dist",
+  "database": {
+    "db": "FanFood",
+    "dbType": "sqlite",
+    "connectionString": "./databases/FanFood.db"
+  }
+}

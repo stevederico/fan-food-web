@@ -1,0 +1,39 @@
+# Deno
+deno.lock
+deno.json
+deno.jsonc
+.deno/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.env
+.env.*
+
+# Build artifacts
+dist/
+build/
+backend/coverage/
+
+# Local data — never bake into railway up images
+backend/databases/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+uploads/
+**/uploads/
+
+# Misc
+*.md
+*.log
+.DS_Store
