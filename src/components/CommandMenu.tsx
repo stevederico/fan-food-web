@@ -41,7 +41,10 @@ export default function CommandMenu() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const { state } = getState();
-  const pages: PageEntry[] = state.constants?.pages || [];
+  // pages already filtered by AppLayout (Manage only when isAdmin)
+  const pages: PageEntry[] = (state.constants?.pages || []).filter(
+    (p: PageEntry) => p.url !== 'manage' || Boolean((state.user as { isAdmin?: boolean } | null)?.isAdmin)
+  );
 
   useEffect(() => {
     /**
