@@ -28,7 +28,8 @@ RUN apk add --no-cache --virtual .build-deps python3 make g++ \
     && cd backend && npm install --omit=dev \
     && apk del .build-deps
 
-RUN chown -R node:node /app/backend
+# SQLite needs a writable databases dir at runtime (non-root)
+RUN mkdir -p /app/backend/databases && chown -R node:node /app/backend
 
 USER node
 
