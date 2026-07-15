@@ -10,6 +10,12 @@
 
 <br />
 
+<div align="center">
+  <img src="public/screenshots/order.png" width="75%" alt="FanFood — place an order to your seat at Oracle Park">
+</div>
+
+<br />
+
 ## Quick Start
 
 ```bash
@@ -24,7 +30,7 @@ cd backend && bun run dev   # http://localhost:8000
 Sign up, then:
 
 - **Fan:** Order Food → pick a venue → menu → section/row/seat → place order  
-- **Admin:** Admin → create/edit venues, menu items, sections  
+- **Admin:** Manage → create/edit venues, menu items, sections  
 
 > `npm run start` can fail under Bun’s workspace launcher; run `front` and `backend` `dev` separately as above.
 
