@@ -20,6 +20,10 @@ vi.mock('./components/CommandMenu', () => ({
   default: () => <div data-testid="command-menu">Command Menu</div>,
 }));
 
+vi.mock('./components/VenuesView', () => ({
+  default: () => <div data-testid="venues-view">Venues</div>,
+}));
+
 vi.mock('./components/MenuView', () => ({
   default: () => <div data-testid="menu-view">Menu</div>,
 }));
@@ -54,7 +58,7 @@ describe('main app bootstrap', () => {
     vi.resetModules();
   });
 
-  it('boots createSkateboardApp with home default and fan-food routes', async () => {
+  it('boots createSkateboardApp with multi-venue routes', async () => {
     await import('./main.tsx');
 
     expect(createSkateboardApp).toHaveBeenCalledTimes(1);
@@ -62,7 +66,8 @@ describe('main app bootstrap', () => {
     expect(config.defaultRoute).toBe('home');
     expect(config.appRoutes.map((r) => r.path)).toEqual([
       'home',
-      'order',
+      'venues/:slug',
+      'venues/:slug/order',
       'orders',
       'orders/:id',
     ]);

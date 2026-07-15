@@ -29,6 +29,18 @@ import {
   jwtVerify,
   generateUUID,
 } from './lib/auth.ts';
+import {
+  ensureFanFoodSchema,
+  findMenuItem,
+  findSection,
+  findVenue,
+  makeConfirmNumber,
+  mapMenuItemRow,
+  mapOrderRow,
+  mapSectionRow,
+  mapVenueRow,
+  type PaymentType,
+} from './lib/fanfood.ts';
 
 /** Hono context environment: authMiddleware sets userID for downstream middleware/handlers. */
 type AppEnv = { Variables: { userID: string } };
@@ -1404,112 +1416,99 @@ app.post("/api/usage", authMiddleware, async (c) => {
   }
 });
 
-// ==== FANFOOD: MENU + ORDERS ====
+// ==== FANFOOD: MULTI-VENUE MENU + ORDERS ====
 
-/** Static concession menu (stadium defaults). */
-const MENU_ITEMS = [
-  { id: 'hot-dog', name: 'Hot Dog', price: 4.25 },
-  { id: 'hot-cocoa', name: 'Hot Cocoa', price: 4.5 },
-  { id: 'candy', name: 'Candy', price: 3.25 },
-  { id: 'peanuts', name: 'Peanuts', price: 4.5 },
-  { id: 'ice-cream', name: 'Ice Cream', price: 5.25 },
-  { id: 'beer', name: 'Beer', price: 7.25 },
-  { id: 'cotton-candy', name: 'Cotton Candy', price: 6.75 },
-] as const;
-
-const DEFAULT_STADIUM = 'AT&T Park';
-
-/** Valid payment types for in-seat orders. */
-type PaymentType = 'Cash' | 'Card';
-
-/** Order row as stored in SQLite and returned by the API. */
-interface FoodOrder {
-  id: string;
-  userId: string;
-  foodType: string;
-  qty: number;
-  totalPrice: number;
-  stadium: string;
-  section: string;
-  row: string;
-  seat: string;
-  paymentType: PaymentType;
-  status: string;
-  confirmNumber: string;
-  createdAt: number;
+/** Ensure schema + seed before FanFood routes (lazy, once). */
+let fanFoodReady: Promise<void> | null = null;
+function readyFanFood(): Promise<void> {
+  if (!fanFoodReady) {
+    fanFoodReady = ensureFanFoodSchema(db).catch((err) => {
+      fanFoodReady = null;
+      throw err;
+    });
+  }
+  return fanFoodReady;
 }
 
-/**
- * Ensure the Orders table exists (idempotent).
- *
- * @returns void
- */
-async function ensureOrdersTable(): Promise<void> {
-  await db.executeQuery({
-    query: `CREATE TABLE IF NOT EXISTS Orders (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      food_type TEXT NOT NULL,
-      qty INTEGER NOT NULL,
-      total_price REAL NOT NULL,
-      stadium TEXT NOT NULL,
-      section TEXT NOT NULL,
-      row TEXT NOT NULL,
-      seat TEXT NOT NULL,
-      payment_type TEXT NOT NULL,
-      status TEXT NOT NULL,
-      confirm_number TEXT NOT NULL,
-      created_at INTEGER NOT NULL
-    )`,
-  });
-  await db.executeQuery({
-    query: `CREATE INDEX IF NOT EXISTS idx_orders_user_id ON Orders(user_id)`,
-  });
-}
+/** List active venues (multi-stadium support). */
+app.get('/api/venues', async (c) => {
+  try {
+    await readyFanFood();
+    const result = await db.executeQuery({
+      query: 'SELECT * FROM Venues WHERE active = 1 ORDER BY name ASC',
+    });
+    if (!result.success) return c.json({ error: 'Failed to load venues' }, 500);
+    const rows = Array.isArray(result.data) ? (result.data as Record<string, unknown>[]) : [];
+    return c.json(rows.map(mapVenueRow));
+  } catch (e) {
+    logger.error('List venues error', { error: errorMessage(e) });
+    return c.json({ error: 'Server error' }, 500);
+  }
+});
 
-/**
- * Map a SQLite Orders row to the API shape.
- *
- * @param row - Raw database row
- * @returns Typed food order
- */
-function mapOrderRow(row: Record<string, unknown>): FoodOrder {
-  return {
-    id: String(row.id),
-    userId: String(row.user_id),
-    foodType: String(row.food_type),
-    qty: Number(row.qty),
-    totalPrice: Number(row.total_price),
-    stadium: String(row.stadium),
-    section: String(row.section),
-    row: String(row.row),
-    seat: String(row.seat),
-    paymentType: row.payment_type === 'Card' ? 'Card' : 'Cash',
-    status: String(row.status),
-    confirmNumber: String(row.confirm_number),
-    createdAt: Number(row.created_at),
-  };
-}
+/** Venue detail by slug or id. */
+app.get('/api/venues/:slug', async (c) => {
+  try {
+    await readyFanFood();
+    const slug = c.req.param('slug');
+    if (!slug) return c.json({ error: 'Venue required' }, 400);
+    const venue = await findVenue(db, slug);
+    if (!venue) return c.json({ error: 'Venue not found' }, 404);
+    return c.json(venue);
+  } catch (e) {
+    logger.error('Get venue error', { error: errorMessage(e) });
+    return c.json({ error: 'Server error' }, 500);
+  }
+});
 
-/**
- * Build a short human-readable confirmation number.
- *
- * @returns Confirmation code like FF-A1B2C3
- */
-function makeConfirmNumber(): string {
-  return `FF-${generateUUID().replace(/-/g, '').slice(0, 6).toUpperCase()}`;
-}
+/** Menu for a venue (array for useListData). */
+app.get('/api/venues/:slug/menu', async (c) => {
+  try {
+    await readyFanFood();
+    const slug = c.req.param('slug');
+    if (!slug) return c.json({ error: 'Venue required' }, 400);
+    const venue = await findVenue(db, slug);
+    if (!venue) return c.json({ error: 'Venue not found' }, 404);
+    const result = await db.executeQuery({
+      query:
+        'SELECT * FROM MenuItems WHERE venue_id = ? AND active = 1 ORDER BY sort_order ASC, name ASC',
+      params: [venue.id],
+    });
+    if (!result.success) return c.json({ error: 'Failed to load menu' }, 500);
+    const rows = Array.isArray(result.data) ? (result.data as Record<string, unknown>[]) : [];
+    c.header('X-Venue', venue.slug);
+    return c.json(rows.map(mapMenuItemRow));
+  } catch (e) {
+    logger.error('Get menu error', { error: errorMessage(e) });
+    return c.json({ error: 'Server error' }, 500);
+  }
+});
 
-/** Concession menu for in-seat ordering (array for useListData). */
-app.get('/api/menu', (c) => {
-  c.header('X-Stadium', DEFAULT_STADIUM);
-  return c.json([...MENU_ITEMS]);
+/** Sections / seating zones for a venue. */
+app.get('/api/venues/:slug/sections', async (c) => {
+  try {
+    await readyFanFood();
+    const slug = c.req.param('slug');
+    if (!slug) return c.json({ error: 'Venue required' }, 400);
+    const venue = await findVenue(db, slug);
+    if (!venue) return c.json({ error: 'Venue not found' }, 404);
+    const result = await db.executeQuery({
+      query: 'SELECT * FROM VenueSections WHERE venue_id = ? ORDER BY sort_order ASC, code ASC',
+      params: [venue.id],
+    });
+    if (!result.success) return c.json({ error: 'Failed to load sections' }, 500);
+    const rows = Array.isArray(result.data) ? (result.data as Record<string, unknown>[]) : [];
+    return c.json(rows.map(mapSectionRow));
+  } catch (e) {
+    logger.error('Get sections error', { error: errorMessage(e) });
+    return c.json({ error: 'Server error' }, 500);
+  }
 });
 
 /** List the signed-in user's orders (newest first). */
 app.get('/api/orders', authMiddleware, async (c) => {
   try {
-    await ensureOrdersTable();
+    await readyFanFood();
     const userID = c.get('userID');
     const result = await db.executeQuery({
       query: 'SELECT * FROM Orders WHERE user_id = ? ORDER BY created_at DESC',
@@ -1519,7 +1518,7 @@ app.get('/api/orders', authMiddleware, async (c) => {
       logger.error('List orders failed', { error: result.error });
       return c.json({ error: 'Failed to load orders' }, 500);
     }
-    const rows = Array.isArray(result.data) ? result.data as Record<string, unknown>[] : [];
+    const rows = Array.isArray(result.data) ? (result.data as Record<string, unknown>[]) : [];
     return c.json(rows.map(mapOrderRow));
   } catch (e) {
     logger.error('List orders error', { error: errorMessage(e) });
@@ -1530,7 +1529,7 @@ app.get('/api/orders', authMiddleware, async (c) => {
 /** Fetch one order owned by the signed-in user. */
 app.get('/api/orders/:id', authMiddleware, async (c) => {
   try {
-    await ensureOrdersTable();
+    await readyFanFood();
     const userID = c.get('userID');
     const id = c.req.param('id');
     if (!id) return c.json({ error: 'Order id required' }, 400);
@@ -1541,7 +1540,7 @@ app.get('/api/orders/:id', authMiddleware, async (c) => {
     if (!result.success) {
       return c.json({ error: 'Failed to load order' }, 500);
     }
-    const rows = Array.isArray(result.data) ? result.data as Record<string, unknown>[] : [];
+    const rows = Array.isArray(result.data) ? (result.data as Record<string, unknown>[]) : [];
     const row = rows[0];
     if (!row) return c.json({ error: 'Order not found' }, 404);
     return c.json(mapOrderRow(row));
@@ -1551,64 +1550,87 @@ app.get('/api/orders/:id', authMiddleware, async (c) => {
   }
 });
 
-/** Place an in-seat concession order. */
+/** Place an order at a venue (in-seat when section is delivery-eligible). */
 app.post('/api/orders', authMiddleware, csrfProtection, async (c) => {
   try {
-    await ensureOrdersTable();
+    await readyFanFood();
     const userID = c.get('userID');
     const body = await c.req.json<Record<string, unknown>>();
 
-    const foodType = typeof body.foodType === 'string' ? body.foodType.trim() : '';
-    const section = typeof body.section === 'string' ? escapeHtml(body.section.trim()) : '';
+    const venueSlug =
+      typeof body.venueSlug === 'string'
+        ? body.venueSlug.trim()
+        : typeof body.venueId === 'string'
+          ? body.venueId.trim()
+          : '';
+    const menuItemId = typeof body.menuItemId === 'string' ? body.menuItemId.trim() : '';
+    const sectionCode = typeof body.section === 'string' ? body.section.trim() : '';
     const row = typeof body.row === 'string' ? escapeHtml(body.row.trim()) : '';
     const seat = typeof body.seat === 'string' ? escapeHtml(body.seat.trim()) : '';
     const paymentType: PaymentType = body.paymentType === 'Card' ? 'Card' : 'Cash';
     const qty = typeof body.qty === 'number' ? Math.floor(body.qty) : Number(body.qty);
-    const stadium =
-      typeof body.stadium === 'string' && body.stadium.trim()
-        ? escapeHtml(body.stadium.trim())
-        : DEFAULT_STADIUM;
 
-    if (!foodType || foodType.length > 80) {
-      return c.json({ error: 'Invalid food item' }, 400);
-    }
-    if (!section || !row || !seat) {
+    if (!venueSlug) return c.json({ error: 'Venue is required' }, 400);
+    if (!menuItemId) return c.json({ error: 'Menu item is required' }, 400);
+    if (!sectionCode || !row || !seat) {
       return c.json({ error: 'Section, row, and seat are required' }, 400);
     }
     if (!Number.isFinite(qty) || qty < 1 || qty > 20) {
       return c.json({ error: 'Quantity must be between 1 and 20' }, 400);
     }
 
-    const menuItem = MENU_ITEMS.find((item) => item.name === foodType);
-    if (!menuItem) {
-      return c.json({ error: 'Unknown menu item' }, 400);
+    const venue = await findVenue(db, venueSlug);
+    if (!venue) return c.json({ error: 'Venue not found' }, 404);
+
+    const menuItem = await findMenuItem(db, venue.id, menuItemId);
+    if (!menuItem) return c.json({ error: 'Unknown menu item for this venue' }, 400);
+
+    const section = await findSection(db, venue.id, sectionCode);
+    if (!section) {
+      return c.json({ error: `Section ${sectionCode} is not valid at ${venue.name}` }, 400);
     }
-    // Price always from server menu — never trust the client
+
+    const deliveryEligible =
+      venue.deliveryMode === 'all'
+        ? true
+        : venue.deliveryMode === 'pickup_only'
+          ? false
+          : section.deliveryEligible;
+
+    // Price always from server menu
     const totalPrice = Math.round(menuItem.price * qty * 100) / 100;
     const id = generateUUID();
     const confirmNumber = makeConfirmNumber();
     const createdAt = Date.now();
-    const status = 'Ordered';
+    const status = deliveryEligible ? 'Ordered' : 'Pickup';
+    const sectionSafe = escapeHtml(section.code);
 
     const insert = await db.executeQuery({
       query: `INSERT INTO Orders (
-        id, user_id, food_type, qty, total_price, stadium, section, row, seat,
-        payment_type, status, confirm_number, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, user_id, venue_id, venue_name, menu_item_id, food_type, qty, total_price,
+        section, row, seat, level, zone, delivery_eligible, payment_type, status,
+        confirm_number, created_at, stadium
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       params: [
         id,
         userID,
-        foodType,
+        venue.id,
+        venue.name,
+        menuItem.id,
+        menuItem.name,
         qty,
         totalPrice,
-        stadium,
-        section,
+        sectionSafe,
         row,
         seat,
+        section.level,
+        section.zone,
+        deliveryEligible ? 1 : 0,
         paymentType,
         status,
         confirmNumber,
         createdAt,
+        venue.name,
       ],
     });
 
@@ -1617,22 +1639,34 @@ app.post('/api/orders', authMiddleware, csrfProtection, async (c) => {
       return c.json({ error: 'Failed to place order' }, 500);
     }
 
-    const order: FoodOrder = {
+    const order = mapOrderRow({
       id,
-      userId: userID,
-      foodType,
+      user_id: userID,
+      venue_id: venue.id,
+      venue_name: venue.name,
+      menu_item_id: menuItem.id,
+      food_type: menuItem.name,
       qty,
-      totalPrice,
-      stadium,
-      section,
+      total_price: totalPrice,
+      section: sectionSafe,
       row,
       seat,
-      paymentType,
+      level: section.level,
+      zone: section.zone,
+      delivery_eligible: deliveryEligible ? 1 : 0,
+      payment_type: paymentType,
       status,
-      confirmNumber,
-      createdAt,
-    };
-    logger.info('Order placed', { orderId: id, userID, foodType, qty });
+      confirm_number: confirmNumber,
+      created_at: createdAt,
+    });
+    logger.info('Order placed', {
+      orderId: id,
+      userID,
+      venue: venue.slug,
+      food: menuItem.name,
+      section: section.code,
+      deliveryEligible,
+    });
     return c.json(order, 201);
   } catch (e) {
     logger.error('Create order error', { error: errorMessage(e) });

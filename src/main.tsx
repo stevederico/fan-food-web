@@ -1,7 +1,7 @@
 /**
  * Application entry point using Skateboard Application Shell Architecture
  *
- * FanFood: in-seat stadium concession ordering.
+ * FanFood: multi-venue in-seat stadium concession ordering.
  *
  * @see {@link https://github.com/stevederico/skateboard|Skateboard Docs}
  */
@@ -14,6 +14,7 @@ import CommandMenu from './components/CommandMenu';
 import HomeViewSkeleton from './components/HomeViewSkeleton';
 import constants from './constants.json';
 
+const VenuesView = lazy(() => import('./components/VenuesView'));
 const MenuView = lazy(() => import('./components/MenuView'));
 const OrderView = lazy(() => import('./components/OrderView'));
 const MyOrdersView = lazy(() => import('./components/MyOrdersView'));
@@ -43,12 +44,20 @@ export const appRoutes: AppRoute[] = [
     path: 'home',
     element: (
       <Suspense fallback={<HomeViewSkeleton />}>
+        <VenuesView />
+      </Suspense>
+    ),
+  },
+  {
+    path: 'venues/:slug',
+    element: (
+      <Suspense fallback={<HomeViewSkeleton />}>
         <MenuView />
       </Suspense>
     ),
   },
   {
-    path: 'order',
+    path: 'venues/:slug/order',
     element: (
       <Suspense fallback={<HomeViewSkeleton />}>
         <OrderView />
@@ -80,5 +89,5 @@ createSkateboardApp({
   overrides: { layout: AppLayout },
 });
 
-/** Preload menu chunk after initial render for instant navigation */
-setTimeout(() => import('./components/MenuView'), 2000);
+/** Preload venues chunk after initial render */
+setTimeout(() => import('./components/VenuesView'), 2000);

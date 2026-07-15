@@ -1,19 +1,31 @@
-import { useNavigate } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
+import { useEffect, useState } from 'react';
 import Header from '@stevederico/skateboard-ui/Header';
-import { useListData } from '@stevederico/skateboard-ui/Utilities';
+import { apiRequest, useListData } from '@stevederico/skateboard-ui/Utilities';
 import { Card, CardContent, CardHeader, CardTitle } from '@stevederico/skateboard-ui/shadcn/ui/card';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
+import { Badge } from '@stevederico/skateboard-ui/shadcn/ui/badge';
 import { Skeleton } from '@stevederico/skateboard-ui/shadcn/ui/skeleton';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@stevederico/skateboard-ui/shadcn/ui/empty';
 
-/** Menu item from GET /api/menu. */
+/** Menu item from GET /api/venues/:slug/menu. */
 interface MenuItem {
   id: string;
   name: string;
   price: number;
+  category: string;
+  description: string | null;
 }
 
-const STADIUM = 'AT&T Park';
+/** Venue from GET /api/venues/:slug. */
+interface Venue {
+  id: string;
+  slug: string;
+  name: string;
+  city: string;
+  state: string;
+  deliveryMode: string;
+}
 
 /**
  * Format a dollar amount.
@@ -26,25 +38,74 @@ function formatPrice(amount: number): string {
 }
 
 /**
- * Concession menu — pick food to order to your seat.
+ * Venue concession menu — order to a seat at this ballpark.
  *
  * @component
- * @returns Menu grid view
+ * @returns Menu grid for a venue
  */
 export default function MenuView() {
+  const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const { data, loading, error, refetch } = useListData<MenuItem>('/menu');
-  const items = Array.isArray(data) ? data : [];
+  const [venue, setVenue] = useState<Venue | null>(null);
+  const [venueError, setVenueError] = useState<string | null>(null);
 
-  if (loading) {
+  const menuPath = slug ? `/venues/${slug}/menu` : '';
+  const { data, loading, error, refetch } = useListData<MenuItem>(menuPath || '/venues');
+  const items = slug && Array.isArray(data) ? data : [];
+
+  useEffect(() => {
+    if (!slug) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const v = (await apiRequest(`/venues/${slug}`)) as Venue;
+        if (!cancelled) setVenue(v);
+      } catch (e) {
+        if (!cancelled) setVenueError(e instanceof Error ? e.message : 'Venue not found');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
+  if (!slug) {
     return (
       <>
         <Header title="Menu" />
-        <div className="flex flex-1 flex-col gap-4 p-4 md:p-6" aria-busy="true" aria-live="polite">
-          <Skeleton className="h-5 w-40" />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
+          <p className="text-copy-md text-muted-foreground">Choose a venue first.</p>
+          <Button type="button" onClick={() => navigate('/app/home')}>
+            Venues
+          </Button>
+        </div>
+      </>
+    );
+  }
+
+  if (venueError) {
+    return (
+      <>
+        <Header title="Menu" />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
+          <p className="text-copy-md text-destructive">{venueError}</p>
+          <Button type="button" onClick={() => navigate('/app/home')}>
+            Venues
+          </Button>
+        </div>
+      </>
+    );
+  }
+
+  if (loading || !venue) {
+    return (
+      <>
+        <Header title="Menu" />
+        <div className="flex flex-1 flex-col gap-4 p-4 md:p-6" aria-busy="true">
+          <Skeleton className="h-5 w-48" />
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-28 w-full rounded-lg" />
+              <Skeleton key={i} className="h-32 w-full rounded-lg" />
             ))}
           </div>
         </div>
@@ -55,7 +116,7 @@ export default function MenuView() {
   if (error) {
     return (
       <>
-        <Header title="Menu" />
+        <Header title={venue.name} />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
           <p className="text-copy-md text-destructive">{error}</p>
           <Button type="button" onClick={() => refetch()}>
@@ -69,7 +130,7 @@ export default function MenuView() {
   if (items.length === 0) {
     return (
       <>
-        <Header title="Menu" />
+        <Header title={venue.name} />
         <div className="flex flex-1 items-center justify-center p-6">
           <Empty>
             <EmptyHeader>
@@ -84,17 +145,32 @@ export default function MenuView() {
 
   return (
     <>
-      <Header title="Menu" buttonTitle="My Orders" onButtonTitleClick={() => navigate('/app/orders')} />
+      <Header
+        title={venue.name}
+        buttonTitle="My Orders"
+        onButtonTitleClick={() => navigate('/app/orders')}
+      />
       <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
-        <p className="text-copy-md text-muted-foreground">
-          Order to your seat at <span className="font-medium text-foreground">{STADIUM}</span>
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={() => navigate('/app/home')}>
+            ← Venues
+          </Button>
+          <p className="text-copy-md text-muted-foreground">
+            {venue.city}, {venue.state}
+          </p>
+        </div>
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => (
             <li key={item.id}>
               <Card className="h-full">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-heading-sm">{item.name}</CardTitle>
+                  <div className="flex items-start justify-between gap-2">
+                    <CardTitle className="text-heading-sm">{item.name}</CardTitle>
+                    <Badge variant="outline">{item.category}</Badge>
+                  </div>
+                  {item.description ? (
+                    <p className="text-copy-sm text-muted-foreground">{item.description}</p>
+                  ) : null}
                 </CardHeader>
                 <CardContent className="flex items-center justify-between gap-3">
                   <span className="text-label-md text-muted-foreground">{formatPrice(item.price)}</span>
@@ -102,7 +178,9 @@ export default function MenuView() {
                     type="button"
                     size="sm"
                     onClick={() =>
-                      navigate(`/app/order?name=${encodeURIComponent(item.name)}&price=${item.price}`)
+                      navigate(
+                        `/app/venues/${slug}/order?item=${encodeURIComponent(item.id)}&name=${encodeURIComponent(item.name)}&price=${item.price}`
+                      )
                     }
                   >
                     Order

@@ -38,9 +38,9 @@
     "devBackendURL": "http://localhost:8000/api",
     "pages": [
         {
-            "title": "Menu",
+            "title": "Venues",
             "url": "home",
-            "icon": "utensils"
+            "icon": "map-pin"
         },
         {
             "title": "My Orders",

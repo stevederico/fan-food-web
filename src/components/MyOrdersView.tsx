@@ -5,7 +5,13 @@ import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Card, CardContent } from '@stevederico/skateboard-ui/shadcn/ui/card';
 import { Badge } from '@stevederico/skateboard-ui/shadcn/ui/badge';
 import { Skeleton } from '@stevederico/skateboard-ui/shadcn/ui/skeleton';
-import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent } from '@stevederico/skateboard-ui/shadcn/ui/empty';
+import {
+  Empty,
+  EmptyHeader,
+  EmptyTitle,
+  EmptyDescription,
+  EmptyContent,
+} from '@stevederico/skateboard-ui/shadcn/ui/empty';
 
 /** Order summary from GET /api/orders. */
 interface FoodOrder {
@@ -17,6 +23,7 @@ interface FoodOrder {
   section: string;
   row: string;
   seat: string;
+  venueName: string;
   createdAt: number;
 }
 
@@ -46,20 +53,14 @@ function formatWhen(ms: number): string {
 }
 
 /**
- * Past concession orders for the signed-in fan.
+ * Past orders across all venues for the signed-in fan.
  *
  * @component
  * @returns Orders list view
  */
 export default function MyOrdersView() {
   const navigate = useNavigate();
-  const { data, loading, error, refetch } = useListData('/orders') as {
-    data: FoodOrder[] | null;
-    loading: boolean;
-    error: string | null;
-    refetch: () => void;
-  };
-
+  const { data, loading, error, refetch } = useListData<FoodOrder>('/orders');
   const orders = Array.isArray(data) ? data : [];
 
   if (loading) {
@@ -97,11 +98,11 @@ export default function MyOrdersView() {
           <Empty>
             <EmptyHeader>
               <EmptyTitle>No orders yet</EmptyTitle>
-              <EmptyDescription>Grab something from the menu — we&apos;ll bring it to your seat.</EmptyDescription>
+              <EmptyDescription>Pick a ballpark and order to your seat.</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
               <Button type="button" onClick={() => navigate('/app/home')}>
-                Browse Menu
+                Browse Venues
               </Button>
             </EmptyContent>
           </Empty>
@@ -112,7 +113,7 @@ export default function MyOrdersView() {
 
   return (
     <>
-      <Header title="My Orders" buttonTitle="Menu" onButtonTitleClick={() => navigate('/app/home')} />
+      <Header title="My Orders" buttonTitle="Venues" onButtonTitleClick={() => navigate('/app/home')} />
       <div className="flex flex-1 flex-col gap-3 p-4 md:p-6">
         <ul className="flex flex-col gap-3">
           {orders.map((order) => (
@@ -129,7 +130,8 @@ export default function MyOrdersView() {
                         {order.qty}× {order.foodType}
                       </span>
                       <span className="text-copy-sm text-muted-foreground">
-                        Sec {order.section} · Row {order.row} · Seat {order.seat} · {formatWhen(order.createdAt)}
+                        {order.venueName} · Sec {order.section} · Row {order.row} · Seat {order.seat} ·{' '}
+                        {formatWhen(order.createdAt)}
                       </span>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">

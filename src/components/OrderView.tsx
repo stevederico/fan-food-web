@@ -1,5 +1,5 @@
-import { useMemo, useState, type FormEvent } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import Header from '@stevederico/skateboard-ui/Header';
 import { apiRequest } from '@stevederico/skateboard-ui/Utilities';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
@@ -8,6 +8,27 @@ import { Label } from '@stevederico/skateboard-ui/shadcn/ui/label';
 import { Field } from '@stevederico/skateboard-ui/shadcn/ui/field';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@stevederico/skateboard-ui/shadcn/ui/card';
 import { ToggleGroup, ToggleGroupItem } from '@stevederico/skateboard-ui/shadcn/ui/toggle-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@stevederico/skateboard-ui/shadcn/ui/select';
+import { Badge } from '@stevederico/skateboard-ui/shadcn/ui/badge';
+import { Skeleton } from '@stevederico/skateboard-ui/shadcn/ui/skeleton';
+
+/** Section from GET /api/venues/:slug/sections. */
+interface VenueSection {
+  id: string;
+  code: string;
+  level: string;
+  zone: string;
+  rowMin: string | null;
+  rowMax: string | null;
+  deliveryEligible: boolean;
+  notes: string | null;
+}
 
 /** Created order from POST /api/orders. */
 interface FoodOrder {
@@ -25,18 +46,22 @@ function formatPrice(amount: number): string {
 }
 
 /**
- * Place an in-seat order: seat location, quantity, payment type.
+ * Place an order for a venue menu item with seat location.
  *
  * @component
  * @returns Order form view
  */
 export default function OrderView() {
+  const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const menuItemId = searchParams.get('item') ?? '';
   const foodName = searchParams.get('name') ?? '';
   const unitPrice = Number(searchParams.get('price') ?? '0');
 
-  const [section, setSection] = useState('');
+  const [sections, setSections] = useState<VenueSection[]>([]);
+  const [sectionsLoading, setSectionsLoading] = useState(true);
+  const [sectionCode, setSectionCode] = useState('');
   const [row, setRow] = useState('');
   const [seat, setSeat] = useState('');
   const [qty, setQty] = useState(1);
@@ -46,15 +71,34 @@ export default function OrderView() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const total = useMemo(() => Math.round(unitPrice * qty * 100) / 100, [unitPrice, qty]);
+  const selectedSection = sections.find((s) => s.code === sectionCode) ?? null;
 
-  if (!foodName || !Number.isFinite(unitPrice) || unitPrice <= 0) {
+  useEffect(() => {
+    if (!slug) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = (await apiRequest(`/venues/${slug}/sections`)) as VenueSection[];
+        if (!cancelled) setSections(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setSections([]);
+      } finally {
+        if (!cancelled) setSectionsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
+  if (!slug || !menuItemId || !foodName || !Number.isFinite(unitPrice) || unitPrice <= 0) {
     return (
       <>
         <Header title="Order" />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
-          <p className="text-copy-md text-muted-foreground">Pick an item from the menu first.</p>
+          <p className="text-copy-md text-muted-foreground">Pick an item from a venue menu first.</p>
           <Button type="button" onClick={() => navigate('/app/home')}>
-            Back to Menu
+            Venues
           </Button>
         </div>
       </>
@@ -68,7 +112,7 @@ export default function OrderView() {
    */
   function validate(): Record<string, string> {
     const next: Record<string, string> = {};
-    if (!section.trim()) next.section = 'Section is required';
+    if (!sectionCode) next.section = 'Section is required';
     if (!row.trim()) next.row = 'Row is required';
     if (!seat.trim()) next.seat = 'Seat is required';
     if (qty < 1 || qty > 20) next.qty = 'Quantity must be 1–20';
@@ -76,7 +120,7 @@ export default function OrderView() {
   }
 
   /**
-   * Submit order to the API and open confirmation.
+   * Submit order to the API.
    *
    * @param e - Form submit event
    */
@@ -93,9 +137,10 @@ export default function OrderView() {
       const order = (await apiRequest('/orders', {
         method: 'POST',
         body: JSON.stringify({
-          foodType: foodName,
+          venueSlug: slug,
+          menuItemId,
           qty,
-          section: section.trim(),
+          section: sectionCode,
           row: row.trim(),
           seat: seat.trim(),
           paymentType,
@@ -117,32 +162,69 @@ export default function OrderView() {
         <Card className="mx-auto w-full max-w-lg">
           <CardHeader>
             <CardTitle className="text-heading-md">Deliver to your seat</CardTitle>
-            <p className="text-copy-md text-muted-foreground">AT&amp;T Park</p>
+            <p className="text-copy-md text-muted-foreground capitalize">{slug?.replace(/-/g, ' ')}</p>
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="flex flex-col gap-4">
-              <div className="grid gap-4 sm:grid-cols-3">
-                <Field>
-                  <Label htmlFor="section">Section</Label>
-                  <Input
-                    id="section"
-                    value={section}
-                    onChange={(e) => {
-                      setSection(e.target.value);
+              <Field>
+                <Label htmlFor="section">Section</Label>
+                {sectionsLoading ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : (
+                  <Select
+                    value={sectionCode}
+                    onValueChange={(v) => {
+                      setSectionCode(v);
                       setErrors((prev) => ({ ...prev, section: '' }));
                     }}
-                    autoComplete="off"
-                    required
-                  />
-                  {errors.section ? (
-                    <p className="text-copy-sm text-destructive">{errors.section}</p>
-                  ) : null}
-                </Field>
+                  >
+                    <SelectTrigger id="section" className="w-full">
+                      <SelectValue placeholder="Select section" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sections.map((s) => (
+                        <SelectItem key={s.id} value={s.code}>
+                          {s.code} · {s.level} · {s.zone.replace(/_/g, ' ')}
+                          {s.deliveryEligible ? ' · delivery' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {errors.section ? (
+                  <p className="text-copy-sm text-destructive">{errors.section}</p>
+                ) : null}
+                {selectedSection ? (
+                  <div className="flex flex-col gap-1">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline">{selectedSection.level}</Badge>
+                      <Badge variant="secondary">{selectedSection.zone.replace(/_/g, ' ')}</Badge>
+                      {selectedSection.deliveryEligible ? (
+                        <Badge>In-seat delivery</Badge>
+                      ) : (
+                        <Badge variant="outline">Pickup / walk-up</Badge>
+                      )}
+                    </div>
+                    {selectedSection.rowMin && selectedSection.rowMax ? (
+                      <p className="text-copy-sm text-muted-foreground">
+                        Typical rows {selectedSection.rowMin}–{selectedSection.rowMax}. Seat 1 faces the
+                        lower-numbered section.
+                      </p>
+                    ) : null}
+                    {selectedSection.notes ? (
+                      <p className="text-copy-sm text-muted-foreground">{selectedSection.notes}</p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </Field>
+
+              <div className="grid gap-4 sm:grid-cols-2">
                 <Field>
                   <Label htmlFor="row">Row</Label>
                   <Input
                     id="row"
                     value={row}
+                    placeholder={selectedSection?.rowMin ?? 'e.g. A or 12'}
                     onChange={(e) => {
                       setRow(e.target.value);
                       setErrors((prev) => ({ ...prev, row: '' }));
@@ -157,6 +239,7 @@ export default function OrderView() {
                   <Input
                     id="seat"
                     value={seat}
+                    placeholder="e.g. 8"
                     onChange={(e) => {
                       setSeat(e.target.value);
                       setErrors((prev) => ({ ...prev, seat: '' }));
@@ -219,13 +302,6 @@ export default function OrderView() {
                     Card
                   </ToggleGroupItem>
                 </ToggleGroup>
-                {paymentType === 'Cash' ? (
-                  <p className="text-copy-sm text-muted-foreground">Pay when your food arrives.</p>
-                ) : (
-                  <p className="text-copy-sm text-muted-foreground">
-                    Card is recorded on the order (no card details stored in this demo).
-                  </p>
-                )}
               </Field>
             </CardContent>
             <CardFooter className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -236,7 +312,7 @@ export default function OrderView() {
                     {submitError}
                   </p>
                 ) : null}
-                <Button type="submit" disabled={submitting}>
+                <Button type="submit" disabled={submitting || sectionsLoading}>
                   {submitting ? 'Placing…' : 'Place Order'}
                 </Button>
               </div>

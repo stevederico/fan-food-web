@@ -13,10 +13,13 @@ interface FoodOrder {
   foodType: string;
   qty: number;
   totalPrice: number;
-  stadium: string;
+  venueName: string;
   section: string;
   row: string;
   seat: string;
+  level: string | null;
+  zone: string | null;
+  deliveryEligible: boolean;
   paymentType: string;
   status: string;
   confirmNumber: string;
@@ -34,7 +37,7 @@ function formatPrice(amount: number): string {
 }
 
 /**
- * Thank-you / order receipt detail.
+ * Order confirmation / receipt.
  *
  * @component
  * @returns Order detail view
@@ -96,12 +99,20 @@ export default function OrderDetailView() {
   const rows: { label: string; value: string }[] = [
     { label: 'Confirm #', value: order.confirmNumber },
     { label: 'Status', value: order.status },
+    { label: 'Venue', value: order.venueName },
     { label: 'Food', value: `${order.qty}× ${order.foodType}` },
     { label: 'Total', value: formatPrice(order.totalPrice) },
-    { label: 'Stadium', value: order.stadium },
     { label: 'Section', value: order.section },
     { label: 'Row', value: order.row },
     { label: 'Seat', value: order.seat },
+  ];
+  if (order.level) rows.push({ label: 'Level', value: order.level });
+  if (order.zone) rows.push({ label: 'Zone', value: order.zone.replace(/_/g, ' ') });
+  rows.push(
+    {
+      label: 'Fulfillment',
+      value: order.deliveryEligible ? 'In-seat delivery' : 'Pickup / walk-up',
+    },
     { label: 'Payment', value: order.paymentType },
     {
       label: 'Placed',
@@ -109,12 +120,12 @@ export default function OrderDetailView() {
         dateStyle: 'medium',
         timeStyle: 'short',
       }).format(new Date(order.createdAt)),
-    },
-  ];
+    }
+  );
 
   return (
     <>
-      <Header title="Thank You" buttonTitle="Menu" onButtonTitleClick={() => navigate('/app/home')} />
+      <Header title="Thank You" buttonTitle="Venues" onButtonTitleClick={() => navigate('/app/home')} />
       <div className="flex flex-1 flex-col p-4 md:p-6">
         <Card className="mx-auto w-full max-w-lg">
           <CardHeader className="flex flex-row items-center justify-between gap-3">
@@ -124,9 +135,12 @@ export default function OrderDetailView() {
           <CardContent>
             <dl className="flex flex-col gap-3">
               {rows.map((row) => (
-                <div key={row.label} className="flex items-baseline justify-between gap-4 border-b border-border pb-2 last:border-0">
+                <div
+                  key={row.label}
+                  className="flex items-baseline justify-between gap-4 border-b border-border pb-2 last:border-0"
+                >
                   <dt className="text-copy-sm text-muted-foreground">{row.label}</dt>
-                  <dd className="text-label-md text-right">{row.value}</dd>
+                  <dd className="text-label-md text-right capitalize">{row.value}</dd>
                 </div>
               ))}
             </dl>
