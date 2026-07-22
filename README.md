@@ -4,7 +4,7 @@
   </p>
   <h1 align="center" style="border-bottom: none; margin-bottom: 0;">FanFood</h1>
   <h3 align="center" style="margin-top: 0; font-weight: normal;">
-    multi-venue stadium concession ordering — react, hono, sqlite, skateboard
+    multi-venue stadium concession ordering
   </h3>
 </div>
 
