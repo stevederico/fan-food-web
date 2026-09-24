@@ -1,6 +1,5 @@
-import { useNavigate } from 'react-router';
 import Header from '@stevederico/skateboard-ui/Header';
-import { useListData } from '@stevederico/skateboard-ui/Utilities';
+import { useListData, useSafeNavigate } from '@stevederico/skateboard-ui/Utilities';
 import { Card, CardContent, CardHeader, CardTitle } from '@stevederico/skateboard-ui/shadcn/ui/card';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Badge } from '@stevederico/skateboard-ui/shadcn/ui/badge';
@@ -39,7 +38,7 @@ function deliveryLabel(mode: Venue['deliveryMode']): string {
  * @returns Venue list view
  */
 export default function VenuesView() {
-  const navigate = useNavigate();
+  const navigate = useSafeNavigate();
   const { data, loading, error, refetch } = useListData<Venue>('/venues');
   const venues = Array.isArray(data) ? data : [];
 

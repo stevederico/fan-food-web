@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router';
 import Header from '@stevederico/skateboard-ui/Header';
-import { apiRequest } from '@stevederico/skateboard-ui/Utilities';
+import { apiRequest, useSafeNavigate } from '@stevederico/skateboard-ui/Utilities';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
 import { Label } from '@stevederico/skateboard-ui/shadcn/ui/label';
@@ -38,7 +37,7 @@ interface Venue {
  * @returns Admin venues view
  */
 export default function AdminVenuesView() {
-  const navigate = useNavigate();
+  const navigate = useSafeNavigate();
   const isAdmin = useIsAdmin();
   const [venues, setVenues] = useState<Venue[]>([]);
   const [loading, setLoading] = useState(true);

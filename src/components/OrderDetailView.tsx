@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import Header from '@stevederico/skateboard-ui/Header';
-import { apiRequest } from '@stevederico/skateboard-ui/Utilities';
+import { apiRequest, useSafeNavigate } from '@stevederico/skateboard-ui/Utilities';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@stevederico/skateboard-ui/shadcn/ui/card';
 import { Badge } from '@stevederico/skateboard-ui/shadcn/ui/badge';
@@ -44,7 +44,7 @@ function formatPrice(amount: number): string {
  */
 export default function OrderDetailView() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const navigate = useSafeNavigate();
   const [order, setOrder] = useState<FoodOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

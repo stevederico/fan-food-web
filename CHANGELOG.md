@@ -3,6 +3,26 @@
 - bulk section import CSV
 - restrict Admin nav to isAdmin only in shell
 
+0.4.0
+
+  Fix FanFood route parity
+  Match master isAdmin me
+  Slugify escaped venue names
+  Align query error messages
+  Treat null sortOrder as zero
+  Add parity regression tests
+
+0.3.0
+
+  Migrate skateboard 5.6
+  Port API to Rust
+  Keep FanFood routes
+  Seed Oracle Park
+  Price orders on server
+  Filter orders by user
+  Replace Lucide icon imports
+  Drop Node backend scripts
+
 0.2.0
 
   prod on sqlite-shared

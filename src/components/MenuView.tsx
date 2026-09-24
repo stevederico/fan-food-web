@@ -1,7 +1,7 @@
-import { useNavigate, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import { useEffect, useState } from 'react';
 import Header from '@stevederico/skateboard-ui/Header';
-import { apiRequest, useListData } from '@stevederico/skateboard-ui/Utilities';
+import { apiRequest, useListData, useSafeNavigate } from '@stevederico/skateboard-ui/Utilities';
 import { Card, CardContent, CardHeader, CardTitle } from '@stevederico/skateboard-ui/shadcn/ui/card';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Badge } from '@stevederico/skateboard-ui/shadcn/ui/badge';
@@ -45,7 +45,7 @@ function formatPrice(amount: number): string {
  */
 export default function MenuView() {
   const { slug } = useParams<{ slug: string }>();
-  const navigate = useNavigate();
+  const navigate = useSafeNavigate();
   const [venue, setVenue] = useState<Venue | null>(null);
   const [venueError, setVenueError] = useState<string | null>(null);
 
