@@ -30,16 +30,13 @@ Portal: **Manage** (`/app/manage`) — not `/admin` (Cloudflare blocks that path
 - Add menu items; deactivate items
 - Add sections (code, level, zone, delivery flag)
 
-## Production database (sqlite-shared)
+## Database
 
-- **Local:** file SQLite via `config.json` (`dbType: "sqlite"`, `./databases/FanFood.db`)
-- **Prod Railway:** `DB_TYPE=libsql` + `LIBSQL_URL` / `LIBSQL_ADMIN_URL` → shared **sqlite-shared** service
-- **Namespace:** `FanFood` (from `config.database.db`) — isolated DB on the shared server
-- Adapter: `backend/adapters/libsql.ts` (`@libsql/client/web`, `x-namespace` header)
+The Rust server opens the SQLite file from `backend/config.json` (`dbType: "sqlite"`, `./databases/FanFood.db`) through system `libsqlite3`.
 
-## Data model (SQLite / libSQL)
+## Data model (SQLite)
 
-Tables created by `backend/lib/fanfood.ts` → `ensureFanFoodSchema`:
+Tables created by `backend/src/db.rs` (`FANFOOD_SCHEMA`), seeded from `backend/src/fanfood.rs`:
 
 ### Venues
 
@@ -118,8 +115,9 @@ Matches real-world Oracle Park style: Uber Eats in-seat for premium clubs; every
 
 | Path | Role |
 |------|------|
-| `backend/lib/fanfood.ts` | Schema, seed, mappers, admin helpers |
-| `backend/server.ts` | Fan + admin HTTP routes |
+| `backend/src/db.rs` | Schema (`FANFOOD_SCHEMA`) and SQLite pool |
+| `backend/src/fanfood.rs` | Seed, mappers, order and admin rules |
+| `backend/src/routes.rs` | Fan + admin HTTP routes |
 | `src/components/VenuesView.tsx` | Fan venue list |
 | `src/components/MenuView.tsx` | Fan menu |
 | `src/components/OrderView.tsx` | Fan checkout |

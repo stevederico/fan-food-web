@@ -24,7 +24,7 @@ cd fan-food-web
 bun install          # or: npm run install-all
 bun run front        # http://localhost:5173
 # other terminal:
-cd backend && bun run dev   # http://localhost:8000
+cd backend && cargo run   # http://localhost:8000
 ```
 
 Sign up, then:
@@ -32,7 +32,7 @@ Sign up, then:
 - **Fan:** Order Food → pick a venue → menu → section/row/seat → place order  
 - **Admin:** Manage → create/edit venues, menu items, sections  
 
-> `npm run start` can fail under Bun’s workspace launcher; run `front` and `backend` `dev` separately as above.
+> Run the Vite frontend and `cargo run` in `backend/` in two terminals.
 
 <br />
 
@@ -146,15 +146,15 @@ Plus Skateboard auth/billing: `/api/signup`, `/api/signin`, `/api/me`, `/api/che
 | Technology | Version | Purpose |
 |------------|---------|---------|
 | **React** | 19 | UI |
-| **skateboard-ui** | 4.14 | Shell, components, theming |
+| **skateboard-ui** | 5.1 | Shell, components, theming |
 | **Vite** | 8 | Frontend build / dev |
 | **Tailwind CSS** | 4 | Styling |
-| **React Router** | 7 | Routing |
-| **Hono** | 4 | API server |
-| **SQLite** | node:sqlite | Venues, menus, sections, orders |
-| **TypeScript** | strict | Frontend + backend |
-| **Node.js** | 24+ | Runtime |
-| **Stripe** | 18 | Optional subscriptions |
+| **React Router** | 7.18 | Route params (shell navigation uses `useSafeNavigate`) |
+| **Rust** | zero-crate | API server |
+| **SQLite** | libsqlite3 | Venues, menus, sections, orders |
+| **TypeScript** | strict | Frontend |
+| **Node.js** | 24+ | Frontend tooling |
+| **Stripe** | HTTPS | Optional subscriptions (libcurl) |
 
 <br />
 
@@ -165,7 +165,7 @@ Plus Skateboard auth/billing: `/api/signup`, `/api/signin`, `/api/me`, `/api/che
 1. **Shell** (`@stevederico/skateboard-ui`) — auth, layout, routing, `apiRequest`  
 2. **Fan views** — `VenuesView`, `MenuView`, `OrderView`, `MyOrdersView`, `OrderDetailView`  
 3. **Admin views** — `AdminVenuesView`, `AdminVenueDetailView`  
-4. **Domain** — `backend/lib/fanfood.ts` (schema, seed, mappers) + routes in `backend/server.ts`  
+4. **Domain** — `backend/src/db.rs` (schema) + `backend/src/fanfood.rs` and routes in `backend/src/routes.rs`  
 
 ```
 Fan:   Venues → Menu → Order (section) → Confirm → My Orders
@@ -180,8 +180,8 @@ Delivery modes per venue: `premium` (section-flagged only), `all`, `pickup_only`
 
 ```bash
 bun run typecheck
-bun run test:frontend
-cd backend && node --experimental-test-module-mocks --test-concurrency=1 --test server.test.ts
+bun run test
+cd backend && cargo test --locked
 ```
 
 **Agent guidance:** [AGENTS.md](AGENTS.md) (symlinked as `CLAUDE.md`).
@@ -190,7 +190,7 @@ cd backend && node --experimental-test-module-mocks --test-concurrency=1 --test 
 
 ## Deployment
 
-See [docs/GUIDE.md#deployment](docs/GUIDE.md#deployment). Production needs `JWT_SECRET`, `ADMIN_EMAILS`, and your host’s static + Node process (or Docker via root `Dockerfile`).
+See [docs/GUIDE.md#deployment](docs/GUIDE.md#deployment). Production needs `JWT_SECRET`, `ADMIN_EMAILS`, and the Rust server (Docker via root `Dockerfile`). The database is the SQLite file in `backend/config.json`.
 
 <br />
 

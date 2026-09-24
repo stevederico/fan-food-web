@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { useParams, useSearchParams } from 'react-router';
 import Header from '@stevederico/skateboard-ui/Header';
-import { apiRequest } from '@stevederico/skateboard-ui/Utilities';
+import { apiRequest, useSafeNavigate } from '@stevederico/skateboard-ui/Utilities';
 import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
 import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
 import { Label } from '@stevederico/skateboard-ui/shadcn/ui/label';
@@ -53,7 +53,7 @@ function formatPrice(amount: number): string {
  */
 export default function OrderView() {
   const { slug } = useParams<{ slug: string }>();
-  const navigate = useNavigate();
+  const navigate = useSafeNavigate();
   const [searchParams] = useSearchParams();
   const menuItemId = searchParams.get('item') ?? '';
   const foodName = searchParams.get('name') ?? '';

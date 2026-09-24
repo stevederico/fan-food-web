@@ -12,8 +12,9 @@ App-owned FanFood logic lives outside pure boilerplate:
 
 | Path | Notes |
 |------|--------|
-| `backend/lib/fanfood.ts` | Venues, sections, menu, seed — **app-owned** |
-| `backend/server.ts` | Contains FanFood + admin routes — **3-way merge carefully** |
+| `backend/src/db.rs` | FanFood `FANFOOD_SCHEMA` lives with the Users schema — merge, do not replace |
+| `backend/src/fanfood.rs` | Seed, mappers, order rules — **app-owned** |
+| `backend/src/routes.rs` | FanFood paths are registered before the `/api/` fallback |
 | `src/components/*` | Fan + admin views — **app-owned** |
 | `src/lib/isAdmin.ts` | Admin helper — **app-owned** |
 | `src/constants.json` | App branding/nav — never take canonical wholesale |
@@ -21,8 +22,8 @@ App-owned FanFood logic lives outside pure boilerplate:
 
 After any boilerplate update:
 
-1. Confirm FanFood routes still register (grep `/api/venues`, `/api/admin`)
-2. `bun run typecheck`
+1. Confirm FanFood routes still register (`/api/venues`, `/api/orders`, `/api/admin` in `backend/src/routes.rs`)
+2. `npm run typecheck` and `cd backend && cargo test --locked`
 3. Smoke: fan order + admin create venue
 
 See also the generic upgrade flow in the Skateboard template’s UPGRADE notes, and [FANFOOD.md](FANFOOD.md).
