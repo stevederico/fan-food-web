@@ -314,7 +314,17 @@ fn set_auth_cookies(state: &AppState, res: Response, user_id: &str, jwt: &str) -
     Ok(res.cookie(&token_cookie(state, jwt)).cookie(&csrf_cookie(state, &csrf)))
 }
 
+/// User document for signup, signin, and GET `/api/me` (includes `isAdmin`).
 fn user_json(u: &User) -> Json {
+    user_doc(u, true)
+}
+
+/// Updated user for PUT `/api/me`. Master returns the row only — no `isAdmin`.
+fn user_json_updated(u: &User) -> Json {
+    user_doc(u, false)
+}
+
+fn user_doc(u: &User, include_admin: bool) -> Json {
     let mut m = BTreeMap::new();
     m.insert("_id".into(), Json::Str(u.id.clone()));
     m.insert("email".into(), Json::Str(u.email.clone()));
@@ -339,10 +349,12 @@ fn user_json(u: &User) -> Json {
         );
         m.insert("usage".into(), Json::Obj(um));
     }
-    m.insert(
-        "isAdmin".into(),
-        Json::Bool(crate::fanfood::is_admin_email(&u.email)),
-    );
+    if include_admin {
+        m.insert(
+            "isAdmin".into(),
+            Json::Bool(crate::fanfood::is_admin_email(&u.email)),
+        );
+    }
     Json::Obj(m)
 }
 
@@ -614,7 +626,7 @@ fn me_put(state: &AppState, req: &Request) -> Response {
     match state.pool.update_user_set_name(&user_id, &sanitized) {
         Ok(0) => err_json(400, "No changes made"),
         Ok(_) => match state.pool.find_user(&UserQuery::Id(user_id)) {
-            Ok(Some(u)) => json_res(200, &user_json(&u)),
+            Ok(Some(u)) => json_res(200, &user_json_updated(&u)),
             Ok(None) => err_json(404, "User not found"),
             Err(e) => {
                 state
@@ -1486,7 +1498,12 @@ fn json_list(items: impl IntoIterator<Item = Json>) -> Json {
 fn venues_list(state: &AppState) -> Response {
     match state.pool.with(crate::fanfood::list_active_venues) {
         Ok(rows) => json_res(200, &json_list(rows.iter().map(venue_json))),
-        Err(e) => db_err(state, "List venues error", &e),
+        Err(e) => {
+            state
+                .log
+                .error("List venues error", &[("error", json::s(e.to_string()))]);
+            err_json(500, "Failed to load venues")
+        }
     }
 }
 
@@ -1655,7 +1672,12 @@ fn admin_venues_list(state: &AppState, req: &Request) -> Response {
     }
     match state.pool.with(crate::fanfood::list_all_venues) {
         Ok(rows) => json_res(200, &json_list(rows.iter().map(venue_json))),
-        Err(e) => db_err(state, "Admin list venues error", &e),
+        Err(e) => {
+            state
+                .log
+                .error("Admin list venues error", &[("error", json::s(e.to_string()))]);
+            err_json(500, "Failed to load venues")
+        }
     }
 }
 
@@ -1722,7 +1744,12 @@ fn admin_menu_list(state: &AppState, req: &Request, id: &str) -> Response {
         .with(move |db| crate::fanfood::admin_menu(db, &id))
     {
         Ok(rows) => json_res(200, &json_list(rows.iter().map(menu_json))),
-        Err(e) => db_err(state, "Admin menu list error", &e),
+        Err(e) => {
+            state
+                .log
+                .error("Admin menu list error", &[("error", json::s(e.to_string()))]);
+            err_json(500, "Failed to load menu")
+        }
     }
 }
 
@@ -2764,6 +2791,286 @@ mod tests {
         assert_eq!(created.status, 201, "{}", String::from_utf8_lossy(&created.body));
         assert_eq!(json_body(&created).get_str("slug"), Some("test-park"));
 
+        unsafe {
+            match &prev {
+                Some(v) => std::env::set_var("ADMIN_EMAILS", v),
+                None => std::env::remove_var("ADMIN_EMAILS"),
+            }
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn pickup_section_101_order_status_is_pickup() {
+        let (state, dir) = test_state();
+        let menu = handle(
+            &state,
+            Request::for_test("GET", "/api/venues/oracle-park/menu"),
+        );
+        let item_id = menu_item(&json_body(&menu), "Garlic Fries")
+            .get_str("id")
+            .unwrap()
+            .to_string();
+        let ada = signed_up(&state, "ada-pickup@example.com");
+        let mut req = Request::for_test("POST", "/api/orders");
+        replay_cookies(&mut req, &[&ada], true);
+        req.set_test_body(
+            format!(
+                r#"{{"venueSlug":"oracle-park","menuItemId":"{item_id}","section":"101","row":"1","seat":"1","qty":1,"paymentType":"Cash"}}"#
+            )
+            .into_bytes(),
+        );
+        let created = handle(&state, req);
+        assert_eq!(created.status, 201, "{}", String::from_utf8_lossy(&created.body));
+        let order = json_body(&created);
+        assert_eq!(order.get_str("status"), Some("Pickup"));
+        assert_eq!(order.get("deliveryEligible").and_then(Json::as_bool), Some(false));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn duplicate_section_code_returns_409() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let prev = std::env::var("ADMIN_EMAILS").ok();
+        unsafe { std::env::set_var("ADMIN_EMAILS", "sec@example.com") };
+        let (state, dir) = test_state_locked();
+        let admin = signed_up(&state, "sec@example.com");
+        let venues = {
+            let mut req = Request::for_test("GET", "/api/admin/venues");
+            replay_cookies(&mut req, &[&admin], false);
+            handle(&state, req)
+        };
+        let venue_id = json_body(&venues)
+            .as_arr()
+            .unwrap()
+            .iter()
+            .find(|v| v.get_str("slug") == Some("oracle-park"))
+            .unwrap()
+            .get_str("id")
+            .unwrap()
+            .to_string();
+        let body = br#"{"code":"ZZ9","level":"field","zone":"field_box"}"#;
+        let mut first = Request::for_test("POST", &format!("/api/admin/venues/{venue_id}/sections"));
+        replay_cookies(&mut first, &[&admin], true);
+        first.set_test_body(body.to_vec());
+        let created = handle(&state, first);
+        assert_eq!(created.status, 201, "{}", String::from_utf8_lossy(&created.body));
+        let mut second = Request::for_test("POST", &format!("/api/admin/venues/{venue_id}/sections"));
+        replay_cookies(&mut second, &[&admin], true);
+        second.set_test_body(body.to_vec());
+        let dup = handle(&state, second);
+        assert_eq!(dup.status, 409, "{}", String::from_utf8_lossy(&dup.body));
+        assert_eq!(
+            json_body(&dup).get_str("error"),
+            Some("Section code already exists for this venue")
+        );
+        unsafe {
+            match &prev {
+                Some(v) => std::env::set_var("ADMIN_EMAILS", v),
+                None => std::env::remove_var("ADMIN_EMAILS"),
+            }
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn inactive_venue_hidden_from_fan_visible_to_admin() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let prev = std::env::var("ADMIN_EMAILS").ok();
+        unsafe { std::env::set_var("ADMIN_EMAILS", "hide@example.com") };
+        let (state, dir) = test_state_locked();
+        let admin = signed_up(&state, "hide@example.com");
+        let mut create = Request::for_test("POST", "/api/admin/venues");
+        replay_cookies(&mut create, &[&admin], true);
+        create.set_test_body(
+            br#"{"name":"Quiet Park","city":"SF","state":"CA","address":"1 Quiet","active":false,"deliveryMode":"pickup_only"}"#
+                .to_vec(),
+        );
+        let created = handle(&state, create);
+        assert_eq!(created.status, 201, "{}", String::from_utf8_lossy(&created.body));
+        let slug = json_body(&created).get_str("slug").unwrap().to_string();
+        assert_eq!(json_body(&created).get("active").and_then(Json::as_bool), Some(false));
+
+        let fan_list = handle(&state, Request::for_test("GET", "/api/venues"));
+        assert_eq!(fan_list.status, 200);
+        let hidden = json_body(&fan_list)
+            .as_arr()
+            .unwrap()
+            .iter()
+            .any(|v| v.get_str("slug") == Some(slug.as_str()));
+        assert!(!hidden, "inactive venue must not appear on GET /api/venues");
+
+        let fan_detail = handle(
+            &state,
+            Request::for_test("GET", &format!("/api/venues/{slug}")),
+        );
+        assert_eq!(fan_detail.status, 404);
+
+        let mut admin_list = Request::for_test("GET", "/api/admin/venues");
+        replay_cookies(&mut admin_list, &[&admin], false);
+        let admin_res = handle(&state, admin_list);
+        assert_eq!(admin_res.status, 200);
+        let present = json_body(&admin_res)
+            .as_arr()
+            .unwrap()
+            .iter()
+            .any(|v| v.get_str("slug") == Some(slug.as_str()));
+        assert!(present, "inactive venue must appear on GET /api/admin/venues");
+        unsafe {
+            match &prev {
+                Some(v) => std::env::set_var("ADMIN_EMAILS", v),
+                None => std::env::remove_var("ADMIN_EMAILS"),
+            }
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn deactivated_menu_item_drops_from_fan_menu() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let prev = std::env::var("ADMIN_EMAILS").ok();
+        unsafe { std::env::set_var("ADMIN_EMAILS", "menu@example.com") };
+        let (state, dir) = test_state_locked();
+        let admin = signed_up(&state, "menu@example.com");
+        let menu = handle(
+            &state,
+            Request::for_test("GET", "/api/venues/oracle-park/menu"),
+        );
+        let menu_body = json_body(&menu);
+        let fries = menu_item(&menu_body, "Garlic Fries");
+        let item_id = fries.get_str("id").unwrap().to_string();
+
+        let mut deactivate = Request::for_test("PUT", &format!("/api/admin/menu/{item_id}"));
+        replay_cookies(&mut deactivate, &[&admin], true);
+        deactivate.set_test_body(br#"{"active":false}"#.to_vec());
+        let updated = handle(&state, deactivate);
+        assert_eq!(updated.status, 200, "{}", String::from_utf8_lossy(&updated.body));
+        assert_eq!(
+            json_body(&updated).get("active").and_then(Json::as_bool),
+            Some(false)
+        );
+
+        let fan_menu = handle(
+            &state,
+            Request::for_test("GET", "/api/venues/oracle-park/menu"),
+        );
+        assert_eq!(fan_menu.status, 200);
+        let still_listed = json_body(&fan_menu)
+            .as_arr()
+            .unwrap()
+            .iter()
+            .any(|item| item.get_str("id") == Some(item_id.as_str()));
+        assert!(!still_listed, "inactive menu item must leave the fan menu");
+        unsafe {
+            match &prev {
+                Some(v) => std::env::set_var("ADMIN_EMAILS", v),
+                None => std::env::remove_var("ADMIN_EMAILS"),
+            }
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn venue_without_slug_slugifies_escaped_amp_name() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let prev = std::env::var("ADMIN_EMAILS").ok();
+        unsafe { std::env::set_var("ADMIN_EMAILS", "slug@example.com") };
+        let (state, dir) = test_state_locked();
+        let admin = signed_up(&state, "slug@example.com");
+        let mut create = Request::for_test("POST", "/api/admin/venues");
+        replay_cookies(&mut create, &[&admin], true);
+        create.set_test_body(
+            br#"{"name":"Fish & Chips","city":"SF","state":"CA","address":"1 Pier"}"#.to_vec(),
+        );
+        let created = handle(&state, create);
+        assert_eq!(created.status, 201, "{}", String::from_utf8_lossy(&created.body));
+        let body = json_body(&created);
+        assert_eq!(body.get_str("slug"), Some("fish-amp-chips"));
+        assert_eq!(body.get_str("name"), Some("Fish &amp; Chips"));
+        unsafe {
+            match &prev {
+                Some(v) => std::env::set_var("ADMIN_EMAILS", v),
+                None => std::env::remove_var("ADMIN_EMAILS"),
+            }
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn me_get_includes_is_admin_put_omits_it() {
+        let (state, dir) = test_state();
+        let signup = signed_up(&state, "me-admin@example.com");
+        assert_eq!(
+            json_body(&signup).get("isAdmin").and_then(Json::as_bool),
+            Some(true)
+        );
+
+        let mut me = Request::for_test("GET", "/api/me");
+        replay_cookies(&mut me, &[&signup], false);
+        let me_res = handle(&state, me);
+        assert_eq!(me_res.status, 200, "{}", String::from_utf8_lossy(&me_res.body));
+        assert_eq!(
+            json_body(&me_res).get("isAdmin").and_then(Json::as_bool),
+            Some(true)
+        );
+
+        let mut put = Request::for_test("PUT", "/api/me");
+        replay_cookies(&mut put, &[&signup], true);
+        put.set_test_body(br#"{"name":"Updated"}"#.to_vec());
+        let put_res = handle(&state, put);
+        assert_eq!(put_res.status, 200, "{}", String::from_utf8_lossy(&put_res.body));
+        let put_body = json_body(&put_res);
+        assert_eq!(put_body.get_str("name"), Some("Updated"));
+        assert!(
+            put_body.get("isAdmin").is_none(),
+            "PUT /api/me must not include isAdmin: {}",
+            String::from_utf8_lossy(&put_res.body)
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn menu_sort_order_null_becomes_zero_on_update() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let prev = std::env::var("ADMIN_EMAILS").ok();
+        unsafe { std::env::set_var("ADMIN_EMAILS", "sort@example.com") };
+        let (state, dir) = test_state_locked();
+        let admin = signed_up(&state, "sort@example.com");
+        let venues = {
+            let mut req = Request::for_test("GET", "/api/admin/venues");
+            replay_cookies(&mut req, &[&admin], false);
+            handle(&state, req)
+        };
+        let venue_id = json_body(&venues)
+            .as_arr()
+            .unwrap()
+            .iter()
+            .find(|v| v.get_str("slug") == Some("oracle-park"))
+            .unwrap()
+            .get_str("id")
+            .unwrap()
+            .to_string();
+        let mut create = Request::for_test("POST", &format!("/api/admin/venues/{venue_id}/menu"));
+        replay_cookies(&mut create, &[&admin], true);
+        create.set_test_body(br#"{"name":"Sort Probe","price":1,"sortOrder":5}"#.to_vec());
+        let created = handle(&state, create);
+        assert_eq!(created.status, 201, "{}", String::from_utf8_lossy(&created.body));
+        let item_id = json_body(&created).get_str("id").unwrap().to_string();
+        assert_eq!(json_body(&created).get_i64("sortOrder"), Some(5));
+
+        let mut update = Request::for_test("PUT", &format!("/api/admin/menu/{item_id}"));
+        replay_cookies(&mut update, &[&admin], true);
+        update.set_test_body(br#"{"sortOrder":null}"#.to_vec());
+        let updated = handle(&state, update);
+        assert_eq!(updated.status, 200, "{}", String::from_utf8_lossy(&updated.body));
+        assert_eq!(json_body(&updated).get_i64("sortOrder"), Some(0));
+
+        let mut keep = Request::for_test("PUT", &format!("/api/admin/menu/{item_id}"));
+        replay_cookies(&mut keep, &[&admin], true);
+        keep.set_test_body(br#"{"name":"Sort Probe 2"}"#.to_vec());
+        let kept = handle(&state, keep);
+        assert_eq!(kept.status, 200, "{}", String::from_utf8_lossy(&kept.body));
+        assert_eq!(json_body(&kept).get_i64("sortOrder"), Some(0));
         unsafe {
             match &prev {
                 Some(v) => std::env::set_var("ADMIN_EMAILS", v),

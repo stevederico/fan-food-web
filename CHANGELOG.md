@@ -3,6 +3,15 @@
 - bulk section import CSV
 - restrict Admin nav to isAdmin only in shell
 
+0.4.0
+
+  Fix FanFood route parity
+  Match master isAdmin me
+  Slugify escaped venue names
+  Align query error messages
+  Treat null sortOrder as zero
+  Add parity regression tests
+
 0.3.0
 
   Migrate skateboard 5.6

@@ -654,8 +654,11 @@ fn is_truthy_one(value: Option<&Json>) -> bool {
     }
 }
 
+/// Match JS `Number(x)` for sortOrder: JSON `null` is `0`; a missing key uses `default`.
 fn sort_value(value: Option<&Json>, default: i64) -> i64 {
     match value {
+        None => default,
+        Some(Json::Null) => 0,
         Some(Json::Num(n)) if n.is_finite() => *n as i64,
         Some(Json::Str(s)) => s
             .trim()
@@ -664,7 +667,7 @@ fn sort_value(value: Option<&Json>, default: i64) -> i64 {
             .filter(|n| n.is_finite())
             .map(|n| n as i64)
             .unwrap_or(default),
-        _ => default,
+        Some(_) => default,
     }
 }
 
@@ -695,10 +698,11 @@ pub fn create_venue(db: &Db, body: &Json) -> Result<Venue, FanFail> {
     if city.is_empty() || state.is_empty() || address.is_empty() {
         return Err(http(400, "City, state, and address are required"));
     }
-    // Slug comes from the raw name, not the HTML-escaped form (`&` would become `amp`).
+    // No slug: slugify the HTML-escaped name (master: `slugifyVenue(escapeHtml(name))`).
+    // Explicit slug: slugify the raw value (not escaped), same as master.
     let mut slug = match nonempty(body, "slug") {
         Some(s) => slugify_venue(s),
-        None => slugify_venue(name_raw),
+        None => slugify_venue(&name),
     };
     if slug.is_empty() {
         return Err(http(400, "Invalid slug"));
@@ -1326,6 +1330,19 @@ mod tests {
         assert_eq!(parse_qty(Some(&Json::Num(0.4))), None);
         assert_eq!(parse_qty(Some(&Json::Num(21.0))), None);
         assert_eq!(parse_qty(Some(&Json::Str("3".into()))), Some(3));
+    }
+
+    #[test]
+    fn sort_order_null_is_zero_missing_keeps_default() {
+        assert_eq!(sort_value(None, 7), 7);
+        assert_eq!(sort_value(Some(&Json::Null), 7), 0);
+        assert_eq!(sort_value(Some(&Json::Num(3.0)), 7), 3);
+    }
+
+    #[test]
+    fn auto_slug_uses_escaped_name_amp() {
+        assert_eq!(slugify_venue(&escape_html("Fish & Chips")), "fish-amp-chips");
+        assert_eq!(slugify_venue("Fish & Chips"), "fish-chips");
     }
 
     #[test]
