@@ -3,6 +3,10 @@
 - bulk section import CSV
 - restrict Admin nav to isAdmin only in shell
 
+0.5.0
+
+  Keep Rust service awake
+
 0.4.0
 
   Fix FanFood route parity
