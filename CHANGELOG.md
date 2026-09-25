@@ -3,6 +3,10 @@
 - bulk section import CSV
 - restrict Admin nav to isAdmin only in shell
 
+0.6.0
+
+  Remove GitHub CI
+
 0.5.0
 
   Keep Rust service awake
