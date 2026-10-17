@@ -1,7 +1,12 @@
+- Keep CalendarTestView demo page: cleanup dropped on purpose (2026-10-17)
 - kitchen / runner status updates
 - real card capture (Stripe PaymentIntent) if needed
 - bulk section import CSV
 - restrict Admin nav to isAdmin only in shell
+
+0.7.0
+
+  Note CalendarTestView kept
 
 0.6.0
 
