@@ -1,13 +1,52 @@
 //! Shared server state and its construction from config + environment.
 
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use crate::config::{self, BackendConfig, Logger};
-use crate::db::Pool;
+use crate::db::{DbError, Pool};
 use crate::http;
 use crate::stores::{CsrfStore, LockoutStore, RateLimitStore};
 use crate::stripe::StripeClient;
 use crate::stripe_worker::StripeWorker;
+
+/// How long startup keeps trying to reach the shared libSQL server.
+///
+/// Inside the Swarm health check's start window, so a slow start still deploys.
+const REMOTE_OPEN_RETRY: Duration = Duration::from_secs(180);
+
+/// Open the shared libSQL pool, waiting out a server that is not reachable yet.
+///
+/// When a whole project restarts at once (a restore, a full redeploy), the
+/// database's hostname can take a minute to resolve. Exiting on the first
+/// failure used up the restart policy and left every app down.
+fn open_remote_with_retry(
+    log: &Logger,
+    url: &str,
+    namespace: &str,
+    size: usize,
+    retry_for: Duration,
+) -> Result<Pool, DbError> {
+    let deadline = Instant::now() + retry_for;
+    let mut wait = Duration::from_secs(1);
+    loop {
+        match Pool::open_remote(url, namespace, size) {
+            Ok(pool) => return Ok(pool),
+            Err(e) if Instant::now() + wait < deadline => {
+                log.warn(
+                    "Shared libSQL not reachable yet, retrying",
+                    &[
+                        ("error", crate::json::Json::Str(e.to_string())),
+                        ("retryInSecs", crate::json::i(wait.as_secs() as i64)),
+                    ],
+                );
+                std::thread::sleep(wait);
+                wait = (wait * 2).min(Duration::from_secs(15));
+            }
+            Err(e) => return Err(e),
+        }
+    }
+}
 
 /// Everything a request handler needs, shared across worker threads.
 ///
@@ -141,14 +180,31 @@ impl AppState {
             ));
         }
 
-        let conn = PathBuf::from(&cfg.database.connection_string);
-        let db_path = if conn.is_absolute() {
-            conn
+        let pool = if let Some(url) = config::env_nonempty("LIBSQL_URL") {
+            // LIBSQL_URL points at a shared libSQL (sqld) server; the namespace
+            // is config.json's database.db. Unset, the app uses its local file.
+            // The namespace must already exist: it is never created here.
+            let namespace = cfg.database.db.clone();
+            log.info(
+                "Opening libSQL",
+                &[
+                    ("namespace", crate::json::Json::Str(namespace.clone())),
+                    ("url", crate::json::Json::Str(url.clone())),
+                ],
+            );
+            open_remote_with_retry(&log, &url, &namespace, pool_size, REMOTE_OPEN_RETRY).map_err(
+                |e| format!("failed to open libsql namespace {namespace} at {url}: {e}"),
+            )?
         } else {
-            dir.join(conn)
+            let conn = PathBuf::from(&cfg.database.connection_string);
+            let db_path = if conn.is_absolute() {
+                conn
+            } else {
+                dir.join(conn)
+            };
+            Pool::open(&db_path.to_string_lossy(), pool_size)
+                .map_err(|e| format!("failed to open sqlite at {}: {e}", db_path.display()))?
         };
-        let pool = Pool::open(&db_path.to_string_lossy(), pool_size)
-            .map_err(|e| format!("failed to open sqlite at {}: {e}", db_path.display()))?;
 
         if config::env_nonempty("STRIPE_KEY").is_none() {
             log.warn("STRIPE_KEY not set - Stripe functionality disabled", &[]);
@@ -205,6 +261,23 @@ fn allowed_origin(cors_origins: &[String], request_origin: Option<&str>) -> Opti
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn remote_open_retries_then_gives_up() {
+        // Nothing listens on port 1, so every attempt fails fast.
+        let start = Instant::now();
+        let result = open_remote_with_retry(
+            &Logger::new(false),
+            "http://127.0.0.1:1",
+            "T",
+            1,
+            Duration::from_millis(2500),
+        );
+        assert!(result.is_err());
+        let took = start.elapsed();
+        assert!(took >= Duration::from_secs(1), "should retry at least once, took {took:?}");
+        assert!(took < Duration::from_secs(5), "should stop near the deadline, took {took:?}");
+    }
 
     #[test]
     fn port_defaults_to_8000() {

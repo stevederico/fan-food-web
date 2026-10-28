@@ -4,6 +4,11 @@
 - bulk section import CSV
 - restrict Admin nav to isAdmin only in shell
 
+0.8.0
+
+  Honor LIBSQL_URL
+  Retry libSQL startup
+
 0.7.0
 
   Note CalendarTestView kept
