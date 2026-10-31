@@ -4,6 +4,10 @@
 - bulk section import CSV
 - restrict Admin nav to isAdmin only in shell
 
+0.8.2
+
+  Pin base images
+
 0.8.1
 
   Remove isSubscriber route doc
