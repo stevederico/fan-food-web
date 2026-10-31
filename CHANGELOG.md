@@ -4,6 +4,11 @@
 - bulk section import CSV
 - restrict Admin nav to isAdmin only in shell
 
+0.8.1
+
+  Remove isSubscriber route doc
+  Point to usage check
+
 0.8.0
 
   Honor LIBSQL_URL
