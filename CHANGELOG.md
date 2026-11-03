@@ -4,6 +4,10 @@
 - bulk section import CSV
 - restrict Admin nav to isAdmin only in shell
 
+0.8.3
+
+  Bump skateboard-ui 5.11.4
+
 0.8.2
 
   Pin base images
