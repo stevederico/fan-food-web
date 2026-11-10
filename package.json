@@ -1,7 +1,7 @@
 {
   "name": "fan-food-web",
   "private": false,
-  "version": "0.8.3",
+  "version": "0.8.4",
   "skateboardVersion": "5.6.0",
   "type": "module",
   "engines": {
