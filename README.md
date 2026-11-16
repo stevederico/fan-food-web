@@ -146,7 +146,7 @@ Plus Skateboard auth/billing: `/api/signup`, `/api/signin`, `/api/me`, `/api/che
 | Technology | Version | Purpose |
 |------------|---------|---------|
 | **React** | 19 | UI |
-| **skateboard-ui** | 5.1 | Shell, components, theming |
+| **skateboard-ui** | 5.19 | Shell, components, theming |
 | **Vite** | 8 | Frontend build / dev |
 | **Tailwind CSS** | 4 | Styling |
 | **React Router** | 7.18 | Route params (shell navigation uses `useSafeNavigate`) |

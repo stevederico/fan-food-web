@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { getState } from '@stevederico/skateboard-ui/Context';
 import { useSafeNavigate } from '@stevederico/skateboard-ui/Utilities';
-import { Receipt, Settings, Utensils } from 'lucide-react';
+import { Receipt, Settings, Utensils } from '@stevederico/skateboard-ui/icons';
 import {
   Command,
   CommandDialog,
@@ -11,7 +11,7 @@ import {
   CommandGroup,
   CommandItem,
   CommandShortcut,
-} from '@stevederico/skateboard-ui/shadcn/ui/command';
+} from '@stevederico/skateboard-ui/ui/command';
 
 
 /**

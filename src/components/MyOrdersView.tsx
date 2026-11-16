@@ -1,16 +1,16 @@
 import Header from '@stevederico/skateboard-ui/Header';
 import { useListData, useSafeNavigate } from '@stevederico/skateboard-ui/Utilities';
-import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
-import { Card, CardContent } from '@stevederico/skateboard-ui/shadcn/ui/card';
-import { Badge } from '@stevederico/skateboard-ui/shadcn/ui/badge';
-import { Skeleton } from '@stevederico/skateboard-ui/shadcn/ui/skeleton';
+import { Button } from '@stevederico/skateboard-ui/ui/button';
+import { Card, CardContent } from '@stevederico/skateboard-ui/ui/card';
+import { Badge } from '@stevederico/skateboard-ui/ui/badge';
+import { Skeleton } from '@stevederico/skateboard-ui/ui/skeleton';
 import {
   Empty,
   EmptyHeader,
   EmptyTitle,
   EmptyDescription,
   EmptyContent,
-} from '@stevederico/skateboard-ui/shadcn/ui/empty';
+} from '@stevederico/skateboard-ui/ui/empty';
 
 /** Order summary from GET /api/orders. */
 interface FoodOrder {

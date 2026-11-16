@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router';
+import { useParams } from '@stevederico/skateboard-ui/router';
 import Header from '@stevederico/skateboard-ui/Header';
 import { apiRequest, useSafeNavigate } from '@stevederico/skateboard-ui/Utilities';
-import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@stevederico/skateboard-ui/shadcn/ui/card';
-import { Badge } from '@stevederico/skateboard-ui/shadcn/ui/badge';
-import { Skeleton } from '@stevederico/skateboard-ui/shadcn/ui/skeleton';
+import { Button } from '@stevederico/skateboard-ui/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@stevederico/skateboard-ui/ui/card';
+import { Badge } from '@stevederico/skateboard-ui/ui/badge';
+import { Skeleton } from '@stevederico/skateboard-ui/ui/skeleton';
 
 /** Full order from GET /api/orders/:id. */
 interface FoodOrder {

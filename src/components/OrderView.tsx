@@ -1,22 +1,22 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useParams, useSearchParams } from 'react-router';
+import { useParams, useSearchParams } from '@stevederico/skateboard-ui/router';
 import Header from '@stevederico/skateboard-ui/Header';
 import { apiRequest, useSafeNavigate } from '@stevederico/skateboard-ui/Utilities';
-import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
-import { Input } from '@stevederico/skateboard-ui/shadcn/ui/input';
-import { Label } from '@stevederico/skateboard-ui/shadcn/ui/label';
-import { Field } from '@stevederico/skateboard-ui/shadcn/ui/field';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@stevederico/skateboard-ui/shadcn/ui/card';
-import { ToggleGroup, ToggleGroupItem } from '@stevederico/skateboard-ui/shadcn/ui/toggle-group';
+import { Button } from '@stevederico/skateboard-ui/ui/button';
+import { Input } from '@stevederico/skateboard-ui/ui/input';
+import { Label } from '@stevederico/skateboard-ui/ui/label';
+import { Field } from '@stevederico/skateboard-ui/ui/field';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@stevederico/skateboard-ui/ui/card';
+import { ToggleGroup, ToggleGroupItem } from '@stevederico/skateboard-ui/ui/toggle-group';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@stevederico/skateboard-ui/shadcn/ui/select';
-import { Badge } from '@stevederico/skateboard-ui/shadcn/ui/badge';
-import { Skeleton } from '@stevederico/skateboard-ui/shadcn/ui/skeleton';
+} from '@stevederico/skateboard-ui/ui/select';
+import { Badge } from '@stevederico/skateboard-ui/ui/badge';
+import { Skeleton } from '@stevederico/skateboard-ui/ui/skeleton';
 
 /** Section from GET /api/venues/:slug/sections. */
 interface VenueSection {

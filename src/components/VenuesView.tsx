@@ -1,10 +1,10 @@
 import Header from '@stevederico/skateboard-ui/Header';
 import { useListData, useSafeNavigate } from '@stevederico/skateboard-ui/Utilities';
-import { Card, CardContent, CardHeader, CardTitle } from '@stevederico/skateboard-ui/shadcn/ui/card';
-import { Button } from '@stevederico/skateboard-ui/shadcn/ui/button';
-import { Badge } from '@stevederico/skateboard-ui/shadcn/ui/badge';
-import { Skeleton } from '@stevederico/skateboard-ui/shadcn/ui/skeleton';
-import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@stevederico/skateboard-ui/shadcn/ui/empty';
+import { Card, CardContent, CardHeader, CardTitle } from '@stevederico/skateboard-ui/ui/card';
+import { Button } from '@stevederico/skateboard-ui/ui/button';
+import { Badge } from '@stevederico/skateboard-ui/ui/badge';
+import { Skeleton } from '@stevederico/skateboard-ui/ui/skeleton';
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@stevederico/skateboard-ui/ui/empty';
 
 /** Venue summary from GET /api/venues. */
 interface Venue {
